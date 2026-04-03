@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seedbound</title>
+    <link rel="icon" href="icon.png" type="image/png">
+    <link rel="stylesheet" href="app.css">
+    <script type="text/javascript" src="mds.js"></script>
+    <script type="text/javascript" src="MinimaCrypto.js"></script>
+    <script type="text/javascript" src="MultiBound.js"></script>
+</head>
+<body>
+    <div class="app">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img class="sidebar-logo" src="icon.png" alt="Seedbound">
+                <span class="sidebar-brand">Seedbound</span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active" onclick="navigateTo('encrypt', this)">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="9" width="14" height="9" rx="2"/>
+                            <path d="M6 9V6a4 4 0 018 0v3"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Encrypt</span>
+                    <span class="tooltip">Encrypt</span>
+                </button>
+
+                <button class="nav-item" onclick="navigateTo('decrypt', this)">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="9" width="14" height="9" rx="2"/>
+                            <path d="M6 9V6a4 4 0 017.5.5"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Decrypt</span>
+                    <span class="tooltip">Decrypt</span>
+                </button>
+
+                <div class="nav-separator"></div>
+
+                <button class="nav-item" id="nav-share" onclick="navigateTo('share', this)">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="14" cy="5" r="2.5"/>
+                            <circle cx="6" cy="10" r="2.5"/>
+                            <circle cx="14" cy="15" r="2.5"/>
+                            <path d="M8.3 11.1l3.4 2.8M8.3 8.9l3.4-2.8"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">Share</span>
+                    <span class="tooltip">Share</span>
+                    <span class="nav-badge" id="share-badge"></span>
+                </button>
+
+                <div class="nav-separator"></div>
+
+                <button class="nav-item" onclick="navigateTo('about', this)">
+                    <span class="nav-icon">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="10" cy="10" r="7"/>
+                            <path d="M10 13v-3M10 7h.01"/>
+                        </svg>
+                    </span>
+                    <span class="nav-label">About</span>
+                    <span class="tooltip">About</span>
+                </button>
+            </nav>
+
+            <button class="sidebar-toggle" onclick="toggleSidebar()">
+                <svg class="toggle-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M13 4l-6 6 6 6"/>
+                </svg>
+                <span class="toggle-label">Collapse</span>
+            </button>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="main">
+
+            <!-- ENCRYPT PAGE -->
+            <div class="page active" id="page-encrypt">
+                <div class="page-header">
+                    <h1>Encrypt File</h1>
+                    <p>Your file will be protected with quantum-resistant encryption and bound to your node</p>
+                </div>
+
+                <div class="card">
+                    <div class="info-box">
+                        <strong>How it works:</strong> the file is encrypted with AES-256 and signed with a one-time quantum-resistant key. Only you can decrypt it.
+                    </div>
+
+                    <div class="section-title">Select a file</div>
+                    <div class="file-upload-area" id="encrypt-upload-area" onclick="document.getElementById('encrypt-file-input').click()">
+                        <div class="upload-icon">+</div>
+                        <div class="upload-title">Click or drag and drop a file</div>
+                        <div class="upload-hint">Any file type, up to 100 MB</div>
+                    </div>
+                    <input type="file" id="encrypt-file-input" onchange="handleEncryptFile(event)">
+
+                    <div id="encrypt-file-info" style="display: none;" class="file-info">
+                        <strong>File:</strong> <span id="encrypt-filename"></span> &nbsp;|&nbsp;
+                        <strong>Size:</strong> <span id="encrypt-filesize"></span>
+                    </div>
+
+                    <div class="actions">
+                        <button class="button" id="encrypt-button" onclick="encryptFile()" disabled>
+                            Encrypt File
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="warning-box">
+                        <strong>Important:</strong>
+                        <ul>
+                            <li>Requires 2 approvals in the Minima node</li>
+                            <li>Without your seed phrase, decryption is impossible</li>
+                            <li>Keep your seed phrase in a safe place</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DECRYPT PAGE -->
+            <div class="page" id="page-decrypt">
+                <div class="page-header">
+                    <h1>Decrypt File</h1>
+                    <p>Upload an encrypted .minima file to decrypt it on your node</p>
+                </div>
+
+                <div class="card">
+                    <div class="info-box">
+                        <strong>Integrity check:</strong> the file signature is verified before decryption. If the file has been tampered with, decryption will be rejected.
+                    </div>
+
+                    <div class="section-title">Encrypted file</div>
+                    <div class="file-upload-area" id="decrypt-upload-area" onclick="document.getElementById('decrypt-file-input').click()">
+                        <div class="upload-icon">+</div>
+                        <div class="upload-title">Click or drag and drop a file</div>
+                        <div class="upload-hint">.minima files</div>
+                    </div>
+                    <input type="file" id="decrypt-file-input" accept=".minima" onchange="handleDecryptFile(event)">
+
+                    <div id="decrypt-file-info" style="display: none;" class="file-info">
+                        <strong>File:</strong> <span id="decrypt-filename"></span> &nbsp;|&nbsp;
+                        <strong>Size:</strong> <span id="decrypt-filesize"></span>
+                    </div>
+
+                    <div class="actions">
+                        <button class="button" id="decrypt-button" onclick="decryptFile()" disabled>
+                            Decrypt File
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="warning-box">
+                        <strong>Important:</strong>
+                        <ul>
+                            <li>Requires 1 approval in the Minima node</li>
+                            <li>The file must have been encrypted on your node (or with your seed phrase)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SHARE PAGE -->
+            <div class="page" id="page-share">
+                <div class="page-header">
+                    <h1>Share Access</h1>
+                    <p>Send an access key via Maxima or bind a received grant to your node</p>
+                </div>
+
+                <div class="card">
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchShareTab('send', this)">Send Access</button>
+                        <button class="tab" onclick="switchShareTab('bind', this)">Decrypt via Grant</button>
+                    </div>
+
+                    <!-- SEND TAB -->
+                    <div id="share-send-tab" class="tab-content active">
+                        <div class="info-box">
+                            <strong>How it works:</strong> select your encrypted file and choose a Maxima contact — the recipient will receive an access key. Send the file separately (email, messenger, cloud storage).
+                        </div>
+
+                        <div class="section-title">Your encrypted file</div>
+                        <div class="file-upload-area" id="share-upload-area" onclick="document.getElementById('share-file-input').click()">
+                            <div class="upload-icon">+</div>
+                            <div class="upload-title">Click or drag and drop a .minima file</div>
+                            <div class="upload-hint">The file you want to share</div>
+                        </div>
+                        <input type="file" id="share-file-input" accept=".minima" onchange="handleShareFile(event)">
+
+                        <div id="share-file-info" style="display: none;" class="file-info">
+                            <strong>File:</strong> <span id="share-filename"></span> &nbsp;|&nbsp;
+                            <strong>Size:</strong> <span id="share-filesize"></span>
+                        </div>
+
+                        <div class="section-title">Recipient</div>
+                        <div id="share-contacts-area">
+                            <select id="share-contact-select" class="share-select" disabled>
+                                <option value="">Loading contacts...</option>
+                            </select>
+                            <button class="button" style="background:#1C1C1C;padding:10px 16px;margin-left:8px;" onclick="loadContacts()">Refresh</button>
+                        </div>
+
+                        <div style="margin-bottom:12px;">
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#888888;font-size:13px;">
+                                <input type="checkbox" id="share-onetime-check" style="width:15px;height:15px;cursor:pointer;">
+                                One-time grant — expires after first use
+                            </label>
+                        </div>
+
+                        <div class="actions">
+                            <button class="button" id="share-send-button" onclick="sendGrant()" disabled>
+                                Send Access Key
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- BIND TAB -->
+                    <div id="share-bind-tab" class="tab-content">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                            <div class="section-title" style="margin:0;">Received Grants</div>
+                            <button class="button" style="background:#1C1C1C;padding:6px 12px;font-size:12px;" onclick="loadReceivedGrants()">Refresh</button>
+                        </div>
+
+                        <div id="bind-grants-list"></div>
+
+                        <div id="bind-no-grant" class="warning-box" style="display:none;">
+                            <strong>No grants received.</strong> Ask the file owner to share access from the Send Access tab, or paste a grant code manually below.
+                        </div>
+
+                        <div id="bind-manual-area" style="margin-top:16px;">
+                            <div class="section-title">Paste Grant Manually</div>
+                            <textarea id="bind-manual-input" placeholder='{"type":"seedbound_grant",...}' style="width:100%;box-sizing:border-box;min-height:72px;background:#0A0A0A;color:#F0F0F0;border:1px solid #2A2A2A;border-radius:6px;padding:10px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+                            <div class="actions" style="margin-top:8px;">
+                                <button class="button" style="background:#1C1C1C;" onclick="pasteGrantManual()">Add to List</button>
+                            </div>
+                        </div>
+
+                        <div id="bind-file-section" style="display:none;margin-top:20px;border-top:1px solid #1C1C1C;padding-top:16px;">
+                            <div class="file-info" style="margin-bottom:12px;">
+                                <strong>Selected grant:</strong> <span id="bind-selected-name" style="color:#FF8C3A;"></span>
+                                <button onclick="clearSelectedGrant()" style="background:none;border:none;color:#888888;cursor:pointer;font-size:12px;margin-left:8px;">✕ cancel</button>
+                            </div>
+                            <div class="section-title">Load the .minima file</div>
+                            <div class="file-upload-area" id="bind-upload-area" onclick="document.getElementById('bind-file-input').click()">
+                                <div class="upload-icon">+</div>
+                                <div class="upload-title">Click or drag and drop a file</div>
+                                <div class="upload-hint">The file you have been granted access to</div>
+                            </div>
+                            <input type="file" id="bind-file-input" accept=".minima" onchange="handleBindFile(event)">
+                            <div id="bind-file-info" style="display:none;" class="file-info">
+                                <strong>File:</strong> <span id="bind-filename"></span> &nbsp;|&nbsp;
+                                <strong>Size:</strong> <span id="bind-filesize"></span>
+                            </div>
+                            <div class="actions">
+                                <button class="button" id="bind-button" onclick="bindGrant()" disabled>Decrypt File</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABOUT PAGE -->
+            <div class="page" id="page-about">
+                <div class="page-header">
+                    <h1>About</h1>
+                    <p>Quantum-resistant file encryption on the Minima blockchain</p>
+                </div>
+
+                <div class="about-grid">
+                    <div class="about-card">
+                        <div class="about-card-icon" style="background:rgba(255,107,0,0.12);color:#FF8C3A;">&#128274;</div>
+                        <h3>AES-256-GCM</h3>
+                        <p>Military-grade encryption standard. A 256-bit key makes brute-force computationally infeasible.</p>
+                    </div>
+                    <div class="about-card">
+                        <div class="about-card-icon" style="background:rgba(34,197,94,0.12);color:#22C55E;">&#9889;</div>
+                        <h3>W-OTS+</h3>
+                        <p>Quantum-resistant one-time signature. Secure against attacks from future quantum computers.</p>
+                    </div>
+                    <div class="about-card">
+                        <div class="about-card-icon" style="background:rgba(245,158,11,0.12);color:#F59E0B;">&#128273;</div>
+                        <h3>PBKDF2-SHA512</h3>
+                        <p>250,000 iterations for key hardening. Significantly slows down any brute-force attempt.</p>
+                    </div>
+                    <div class="about-card">
+                        <div class="about-card-icon" style="background:rgba(167,139,250,0.12);color:#A78BFA;">&#127760;</div>
+                        <h3>Zero-Knowledge</h3>
+                        <p>Only 32 random bytes are visible in the encrypted file. No metadata exposed.</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-title">5 Layers of Protection</div>
+                    <div class="about-layers">
+                        <div class="about-layer">
+                            <div class="layer-number">1</div>
+                            <div class="layer-info">
+                                <h4>File Encryption</h4>
+                                <p>AES-256-GCM turns file contents into unreadable data. Built-in integrity verification detects any tampering.</p>
+                            </div>
+                        </div>
+                        <div class="about-layer">
+                            <div class="layer-number">2</div>
+                            <div class="layer-info">
+                                <h4>Key Protection</h4>
+                                <p>The encryption key is wrapped using PBKDF2-SHA512, bound to your node's seed phrase. Without the node, the key cannot be extracted.</p>
+                            </div>
+                        </div>
+                        <div class="about-layer">
+                            <div class="layer-number">3</div>
+                            <div class="layer-info">
+                                <h4>Concealed Metadata</h4>
+                                <p>Address, signature, encryption parameters — all encrypted. An attacker cannot determine even how the file was protected.</p>
+                            </div>
+                        </div>
+                        <div class="about-layer">
+                            <div class="layer-number">4</div>
+                            <div class="layer-info">
+                                <h4>Quantum-Resistant Signature</h4>
+                                <p>W-OTS+ guarantees the file was created by you and has not been modified. Resistant to quantum computer attacks.</p>
+                            </div>
+                        </div>
+                        <div class="about-layer">
+                            <div class="layer-number">5</div>
+                            <div class="layer-info">
+                                <h4>Node Binding</h4>
+                                <p>The file can only be decrypted on a node with your seed phrase. Offline brute-force is physically impossible.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-title">How it differs from standard encryption</div>
+                    <div class="info-box">
+                        <strong>Standard encryption:</strong> file + password → decrypt. An attacker can brute-force the password offline, without any limits.<br><br>
+                        <strong>Quantum Crypto:</strong> file + live node + seed phrase → decrypt. An offline attack is physically impossible — without the node, there is nothing to brute-force.
+                    </div>
+                    <div class="about-version">
+                        Seedbound v1.0.0 &mdash; Minima Blockchain &mdash; No external dependencies
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- GRANT NOTIFICATION -->
+    <div class="grant-notification" id="grant-notification">
+        <h4>New Access Grant</h4>
+        <p id="grant-notification-text">You have been granted access to a file</p>
+        <button class="button button-green" onclick="acceptGrantNotification()">View</button>
+        <button class="button" style="background:#1C1C1C;" onclick="dismissGrantNotification()">Later</button>
+    </div>
+
+    <!-- PROGRESS MODAL -->
+    <div class="modal-overlay" id="progress-modal">
+        <div class="modal">
+            <div class="modal-title" id="modal-title">Encrypting</div>
+            <ul class="step-list" id="modal-steps"></ul>
+            <div class="modal-error" id="modal-error"></div>
+            <div class="modal-actions" id="modal-actions"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
