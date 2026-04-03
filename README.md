@@ -2,7 +2,7 @@
 
 > Encrypt any file with military-grade, quantum-resistant cryptography. Share access securely with other Minima nodes — all without servers, passwords, or trusted third parties.
 
-<img src="images/6)  Общий вид.png" alt="Seedbound — General View" width="100%">
+<img src="images/overview.png" alt="Seedbound — General View" width="100%">
 
 ---
 
@@ -41,11 +41,11 @@ Seedbound:        file + live Minima node + seed phrase → decrypt
 
 ### Encrypting a File
 
-<img src="images/1) добавил файл для шифрования.png" alt="Encrypt — file selected" width="100%">
+<img src="images/encrypt_01_file_selected.png" alt="Encrypt — file selected" width="100%">
 
-<img src="images/2) оконо с прогрессмо где видно что нужно подтвердить .png" alt="Encrypt — awaiting node approval" width="100%">
+<img src="images/encrypt_02_awaiting_approval.png" alt="Encrypt — awaiting node approval" width="100%">
 
-<img src="images/3) окно где видно что все успешно и дает возможность скачать.png" alt="Encrypt — success, ready to download" width="100%">
+<img src="images/encrypt_03_success.png" alt="Encrypt — success, ready to download" width="100%">
 
 1. A new one-time W-OTS+ address is created on your node
 2. A random 256-bit AES key is generated in the browser
@@ -63,9 +63,9 @@ Seedbound:        file + live Minima node + seed phrase → decrypt
 
 This is the **unique feature** of Seedbound v4. One encrypted file, multiple recipients — each with their own independent access grant.
 
-<img src="images/7) отправка гранта.png" alt="Share — sending access key via Maxima" width="100%">
+<img src="images/share_01_sending_grant.png" alt="Share — sending access key via Maxima" width="100%">
 
-<img src="images/8) грант получен.jpg" alt="Share — received grant ready to use" width="100%">
+<img src="images/share_02_grant_received.jpg" alt="Share — received grant ready to use" width="100%">
 
 **Sender side (1 node approval):**
 1. Load the `.minima` file you own
@@ -126,7 +126,7 @@ Each `GrantBlock` is an independent encrypted copy of the AES key + metadata, bo
 
 ## Decrypting a File
 
-<img src="images/5) Выбран файл для дешефровки .png" alt="Decrypt — file loaded, ready to decrypt" width="100%">
+<img src="images/decrypt_01_file_selected.png" alt="Decrypt — file loaded, ready to decrypt" width="100%">
 
 1. Load the `.minima` file
 2. The app sends the challenge to your node — it returns the `seedHash` *(1 node approval)*
@@ -139,7 +139,7 @@ Each `GrantBlock` is an independent encrypted copy of the AES key + metadata, bo
 
 ## About Page
 
-<img src="images/4) about.png" alt="About — security features and 5 layers of protection" width="100%">
+<img src="images/about.png" alt="About — security features and 5 layers of protection" width="100%">
 
 ---
 
