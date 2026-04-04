@@ -484,10 +484,13 @@ class MinimaCryptoEnhancedClass {
         console.log('[MC] _signWithMinima: dataHash:', hashHex.substring(0, 16) + '...');
 
         return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Timeout: sign')), 10000);
+
             MDS.cmd(`sign data:${hashHex} publickey:${publickey}`, (response) => {
                 console.log('[MC] _signWithMinima: ответ:', JSON.stringify(response).substring(0, 300));
 
                 if (response && response.status === true && response.response) {
+                    clearTimeout(timeout);
                     const sig = response.response.signature || response.response;
                     if (sig && typeof sig === 'string') {
                         console.log('[MC] _signWithMinima: OK, длина:', sig.length);
@@ -497,6 +500,7 @@ class MinimaCryptoEnhancedClass {
                 }
 
                 if (response && response.pending === true) {
+                    clearTimeout(timeout);
                     const expectedUid = response.pendinguid;
                     console.log('[MC] _signWithMinima: PENDING, pendinguid:', expectedUid);
 
@@ -536,6 +540,7 @@ class MinimaCryptoEnhancedClass {
                         reject(new Error('TIMEOUT'));
                     }, 120000);
                 } else {
+                    clearTimeout(timeout);
                     reject(new Error('sign: не удалось получить подпись'));
                 }
             });
