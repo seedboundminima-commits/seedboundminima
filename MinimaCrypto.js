@@ -4,7 +4,7 @@
  * В файле виден ТОЛЬКО challenge (32 байт). Всё остальное зашифровано.
  *
  * Формат .minima (Standard):
- *   MAGIC(4) | VERSION(1)=3 | Challenge(32)
+ *   MAGIC(4) | VERSION(1)=1 | Challenge(32)
  *   | EncKeyLen(2) | EncKeyData(~76) | EncMetaLen(4) | EncMeta(~4340) | Ciphertext
  *
  * EncMeta = AES-GCM(KEK_meta, address + publickey + signature + fileIV + fileTag)
@@ -16,7 +16,7 @@
 class MinimaCryptoEnhancedClass {
     constructor() {
         this.MAGIC = new Uint8Array([0x4D, 0x49, 0x4E, 0x00]); // "MIN\0"
-        this.VERSION = 3;
+        this.VERSION = 1;
         this.CTX_KEK  = new TextEncoder().encode('qcrypto-kek-v1');
         this.CTX_META = new TextEncoder().encode('qcrypto-meta-v1');
         console.log('[QC] Quantum Crypto v1 инициализирован');
@@ -163,7 +163,7 @@ class MinimaCryptoEnhancedClass {
     // ─── FILE FORMAT v3 ─────────────────────────────────────────
 
     /**
-     * MAGIC(4) | VERSION(1)=3 | Challenge(32)
+     * MAGIC(4) | VERSION(1)=1 | Challenge(32)
      * | EncKeyLen(2) | EncKeyData | EncMetaLen(4) | EncMeta | Ciphertext
      */
     _assembleMinima(challenge, encryptedKeyData, encryptedMeta, ciphertext) {
@@ -194,7 +194,7 @@ class MinimaCryptoEnhancedClass {
 
         const version = view[4];
         console.log('[MC] _parseMinima: version =', version);
-        if (version !== 3) throw new Error(`Неподдерживаемая версия: ${version}. Требуется формат Standard (v3).`);
+        if (version !== 1) throw new Error(`Неподдерживаемая версия: ${version}. Требуется формат Standard (1).`);
 
         let o = 5;
 

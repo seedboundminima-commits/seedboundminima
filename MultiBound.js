@@ -5,7 +5,7 @@
  * Не изменяет MinimaCrypto.js — только использует его методы.
  *
  * Формат .minima Multi-Bound (расширение Standard):
- *   MAGIC(4) | VERSION(1)=4 | PrimaryChallenge(32)
+ *   MAGIC(4) | VERSION(1)=2 | PrimaryChallenge(32)
  *   | EncKeyLen(2) | EncKeyData | EncMetaLen(4) | EncMeta
  *   | CiphertextLen(4) | Ciphertext
  *   | GrantCount(2) | [GrantBlock...]
@@ -19,7 +19,7 @@ const MB_DB_STORE = 'hints';
 
 class MultiBoundClass {
     constructor() {
-        this.VERSION_MULTI = 4;
+        this.VERSION_MULTI = 2;
         this._maximaCallbacks = [];
         this._sqlReady = false;
         console.log('[MB] MultiBound инициализирован');
@@ -367,7 +367,7 @@ class MultiBoundClass {
         const version = view[4];
         console.log('[MB] _parseAny: version =', version);
 
-        if (version === 3) {
+        if (version === 1) {
             return this._parseStandard(view);
         } else if (version === this.VERSION_MULTI) {
             return this._parseMultiBound(view);
@@ -391,7 +391,7 @@ class MultiBoundClass {
         console.log('[MB] _parseStandard: encKey=' + encKeyLen + ' encMeta=' + encMetaLen + ' ct=' + ciphertext.length);
 
         return {
-            version: 3,
+            version: 1,
             primaryBlock: { challenge, encryptedKeyData, encryptedMeta },
             ciphertext,
             grantBlocks: []
@@ -444,7 +444,7 @@ class MultiBoundClass {
             + ' ct=' + ciphertext.length + ' grants=' + grantBlocks.length);
 
         return {
-            version: 4,
+            version: 2,
             primaryBlock: { challenge, encryptedKeyData, encryptedMeta },
             ciphertext,
             grantBlocks
