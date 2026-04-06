@@ -1,0 +1,15 @@
+{
+  "name": "Seedbound",
+  "description": "Quantum-resistant file encryption for Minima",
+  "icon": "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/icon.png",
+  "version": "1.0",
+  "dapps": [
+    {
+      "name": "Seedbound",
+      "description": "Quantum-resistant file encryption with multi-node access grants via Maxima",
+      "version": "1.0.1",
+      "icon": "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/icon.png",
+      "file": "https://github.com/seedboundminima-commits/seedboundminima/releases/download/v1.0.1/Seedbound-v1.0.1.zip"
+    }
+  ]
+}
