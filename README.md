@@ -61,7 +61,7 @@ Seedbound:        file + live Minima node + seed phrase → decrypt
 
 ### Sharing Access with Another Node
 
-This is the **unique feature** of Seedbound v4. One encrypted file, multiple recipients — each with their own independent access grant.
+This is the **unique feature** of Seedbound v2. One encrypted file, multiple recipients — each with their own independent access grant.
 
 <img src="images/share_01_sending_grant.png" alt="Share — sending access key via Maxima" width="100%">
 
@@ -77,7 +77,7 @@ This is the **unique feature** of Seedbound v4. One encrypted file, multiple rec
 2. Load the `.minima` file (shared via any channel: email, cloud, messenger)
 3. Click **Decrypt by grant** — the app re-encrypts the AES key under the recipient's own seed phrase and appends a new access block to the file
 
-After binding, the recipient can decrypt the file independently, forever — even without internet, even if the sender is gone. The file is now a **v4 multi-bound file** with two separate access blocks.
+After binding, the recipient can decrypt the file independently, forever — even without internet, even if the sender is gone. The file is now a **v2 multi-bound file** with two separate access blocks.
 
 ---
 
@@ -180,7 +180,7 @@ No configuration required. The app connects to your local node automatically.
 ```
 index.html          Single-page UI
 MinimaCrypto.js     Crypto engine — encryption, decryption, key derivation
-MultiBound.js       Grant system — create, send, bind, parse v4 format
+MultiBound.js       Grant system — create, send, bind, parse v2 format
 app.js              UI controller — navigation, file handling, progress modal
 app.css             Styles — Minima brand design
 mds.js              Minima MDS WebSocket client (unmodified Minima library)
@@ -193,13 +193,13 @@ dapp.conf           MiniDapp manifest
 
 - **Max file size:** 100 MB (browser in-memory processing)
 - **Node approvals:** encryption requires 2 approvals, decryption requires 1 — by design, not a bug
-- **v4 → v3 downgrade:** not possible and not needed
+- **v2 → v1 downgrade:** not possible and not needed
 
 ---
 
 ## Version
 
-**Seedbound v1.0.0**
+**Seedbound v1.0.1**
 File format: `.minima` Standard (single-node) / Multi-Bound (shared access)
 Platform: Minima Blockchain (MiniDapp)
 External dependencies: none

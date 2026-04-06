@@ -548,7 +548,7 @@ async function decryptFile() {
     let version = 1;
     try {
         if (window.MultiBound) version = await window.MultiBound.getFileVersion(currentDecryptFile);
-    } catch (e) { /* fallback to v3 */ }
+    } catch (e) { /* fallback to v1 */ }
 
     const isMultiBound = version === 2;
     const steps = isMultiBound ? DECRYPT_V4_STEPS : DECRYPT_STEPS;

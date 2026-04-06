@@ -160,7 +160,7 @@ class MinimaCryptoEnhancedClass {
         }
     }
 
-    // ─── FILE FORMAT v3 ─────────────────────────────────────────
+    // ─── FILE FORMAT v1 ─────────────────────────────────────────
 
     /**
      * MAGIC(4) | VERSION(1)=1 | Challenge(32)
@@ -638,7 +638,7 @@ if (typeof window !== 'undefined') {
     const instance = new MinimaCryptoEnhancedClass();
     window.MinimaCryptoEnhanced = instance;
     window.MinimaCrypto = instance;
-    console.log('[MC] MinimaCrypto v3 готова');
+    console.log('[MC] MinimaCrypto v1 готова');
 }
 
 if (typeof MDS !== 'undefined' && MDS.init && !window.__minimaPendingListenerRegistered) {

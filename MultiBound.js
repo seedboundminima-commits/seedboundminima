@@ -37,7 +37,7 @@ class MultiBoundClass {
      * Расшифровывает свой файл и извлекает grant-пакет для отправки через Maxima.
      * Требует 1 approve (seedrandom).
      *
-     * @param {Blob} minimaBlob — файл .minima (v3 или v4)
+     * @param {Blob} minimaBlob — файл .minima (v1 или v2)
      * @param {Object} options — { onProgress }
      * @returns {{ aesKeyB64, fileIVB64, fileTagB64, fileHash }}
      */
@@ -192,7 +192,7 @@ class MultiBoundClass {
 
     /**
      * Расшифровывает файл напрямую по grant-пакету — без привязки, без approve.
-     * Работает с v3 и v4 файлами.
+     * Работает с v1 и v2 файлами.
      *
      * @param {Blob} minimaBlob — оригинальный файл .minima
      * @param {Object} grantPacket — { aesKeyB64, fileIVB64, fileTagB64, fileHash }
@@ -248,13 +248,13 @@ class MultiBoundClass {
         }
     }
 
-    // ─── DECRYPT MULTI-BOUND (v4) ───────────────────────────────
+    // ─── DECRYPT MULTI-BOUND (v2) ───────────────────────────────
 
     /**
-     * Расшифровка файла v4: перебирает primary-блок и grant-блоки.
+     * Расшифровка файла v2: перебирает primary-блок и grant-блоки.
      * Использует IndexedDB-подсказку для минимизации approve.
      *
-     * @param {Blob} minimaBlob — файл .minima v4
+     * @param {Blob} minimaBlob — файл .minima v2
      * @param {Object} options — { onProgress }
      * @returns {{ file: Blob, fileSize, address }}
      */
@@ -348,10 +348,10 @@ class MultiBoundClass {
         }
     }
 
-    // ─── FILE FORMAT v4 ──────────────────────────────────────────
+    // ─── FILE FORMAT v2 ──────────────────────────────────────────
 
     /**
-     * Парсит файл v3 или v4. Возвращает единую структуру.
+     * Парсит файл v1 или v2. Возвращает единую структуру.
      * @returns {{ primaryBlock, ciphertext, grantBlocks[] }}
      */
     async _parseAny(fileBlob) {
@@ -452,7 +452,7 @@ class MultiBoundClass {
     }
 
     /**
-     * Добавляет grant-блок в файл. Если v3 — конвертирует в v4.
+     * Добавляет grant-блок в файл. Если v1 — конвертирует в v2.
      * @returns {Blob}
      */
     _addGrantToFile(parsed, newGrantBlock) {
@@ -488,7 +488,7 @@ class MultiBoundClass {
             gb.parts.forEach(p => parts.push(p));
         });
 
-        console.log('[MB] _addGrantToFile: v4, grants=' + allGrants.length);
+        console.log('[MB] _addGrantToFile: v2, grants=' + allGrants.length);
         return new Blob(parts, { type: 'application/x-minima' });
     }
 

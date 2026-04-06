@@ -1,0 +1,12 @@
+# Claude Code project instructions (local only)
+CLAUDE.md
+
+# Build artifacts
+*.minidapp
+*.zip
+
+# IDE
+.idea/
+
+# Claude Code config (local only)
+.claude/
