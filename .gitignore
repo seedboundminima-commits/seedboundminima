@@ -1,6 +1,13 @@
 # Claude Code project instructions (local only)
 CLAUDE.md
 
+# Local documentation (not for repo)
+ARCHITECTURE.md
+CHANGELOG.md
+MULTI-BOUND-SPEC.md
+TESTING.md
+THOUGHTS.md
+
 # Build artifacts
 *.minidapp
 *.zip
