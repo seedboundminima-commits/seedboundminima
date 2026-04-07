@@ -189,6 +189,16 @@ dapp.conf           MiniDapp manifest
 
 ---
 
+## Future Plans
+
+| Milestone | What's coming |
+|-----------|--------------|
+| M1 (months 1–2) | Batch file encryption, improved UI/UX, demo video, unit tests |
+| M2 (months 2–4) | Access revocation, time-limited grants, grant management UI |
+| M3 (months 4–6) | Desktop application (Tauri), Minima MiniDapp Store publication |
+
+---
+
 ## Limitations
 
 - **Max file size:** 100 MB (browser in-memory processing)
