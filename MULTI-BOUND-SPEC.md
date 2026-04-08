@@ -1,222 +1,222 @@
-# Multi-Bound: совместный доступ к зашифрованным файлам
+# Multi-Bound: Shared Access to Encrypted Files
 
-## Техническое задание и план разработки
-
----
-
-## 1. Что делаем и зачем
-
-Сейчас (v1) файл `.minima` привязан к одной ноде. Расшифровать может только владелец seed phrase, который зашифровал файл. Передать доступ другому человеку невозможно.
-
-Multi-Bound (v2) добавляет возможность дать доступ к файлу другим людям. Каждый получатель привязывает файл к своей ноде — после этого и отправитель, и получатель могут расшифровать один и тот же файл независимо друг от друга, каждый на своей ноде.
-
-**Ключевой принцип:** файл шифруется один раз. Ciphertext не меняется. Меняется только количество «замков» — каждый владелец имеет свой замок (grant-блок) к одному и тому же содержимому.
+## Technical Specification and Development Plan
 
 ---
 
-## 2. Три компонента системы
+## 1. What We Are Building and Why
 
-### 2.1. Maxima — транспорт
+Currently (v1), a `.minima` file is bound to a single node. Only the owner of the seed phrase that encrypted the file can decrypt it. There is no way to grant access to another person.
 
-**Что это:** встроенный в Minima протокол P2P-сообщений между нодами. Шифрует сообщения end-to-end автоматически.
+Multi-Bound (v2) adds the ability to grant file access to other people. Each recipient binds the file to their own node — after that, both the sender and the recipient can decrypt the same file independently, each on their own node.
 
-**Роль в системе:** доставляет grant-пакет (AES-ключ + параметры) от отправителя к получателю.
-
-**Почему Maxima, а не блокчейн-транзакция:**
-
-| Критерий | Maxima | Блокчейн (state vars) |
-|----------|--------|-----------------------|
-| Приватность | E2E шифрование, никто не видит | State variables публичны, видны всем |
-| Скорость | Мгновенно | Ждать включения в блок |
-| Стоимость | Бесплатно | Нужны монеты Minima на входе |
-| Размер данных | Достаточный для grant-пакета | 256 переменных с ограничениями длины |
-| Онлайн | Получатель должен быть онлайн (или сообщение ждёт) | Данные в блокчейне навсегда |
-
-**Решение:** Maxima. Приватность и скорость важнее постоянного хранения. Постоянное хранение обеспечивается самим файлом (grant-блоки встроены в файл).
-
-### 2.2. Файл `.minima` — хранилище grant-блоков
-
-**Роль в системе:** grant-блоки встраиваются в конец файла. Файл становится полностью портативным — его можно скопировать на флешку, отправить по почте, загрузить в облако. Любой авторизованный владелец расшифрует его на своей ноде без дополнительных данных.
-
-**Почему в файле, а не в IndexedDB браузера:**
-
-| Критерий | В файле | IndexedDB |
-|----------|---------|-----------|
-| Портативность | Файл = всё что нужно | Grant теряется при смене устройства |
-| Надёжность | Файл можно бэкапить | Очистка браузера = потеря grant'а |
-| Простота | Один файл, один формат | Нужна синхронизация файл ↔ БД |
-| Восстановление | Seed phrase + файл = доступ | Seed phrase + файл + IndexedDB = доступ |
-
-**Решение:** grant-блоки живут в файле. IndexedDB используется только как кеш-подсказка (какой блок наш) для оптимизации количества approve.
-
-### 2.3. Блокчейн — нотариус (опционально, фаза 5)
-
-**Роль в системе:** хранит только SHA-256 хеш от grantId. Позволяет:
-- Доказать что grant существовал на определённую дату
-- Отозвать grant (запись SB_REVOKE)
-
-**Почему только хеш, а не данные:**
-
-On-chain данные публичны. Если записать зашифрованный grant целиком — виден сам факт «адрес X дал кому-то доступ к чему-то». Это раскрывает поведение пользователя. Хеш не раскрывает ничего — 32 случайных байт без контекста.
-
-**Решение:** блокчейн = опциональный нотариус только для revoke. Реализуется в последнюю очередь.
+**Key principle:** the file is encrypted once. The ciphertext does not change. What changes is only the number of "locks" — each owner has their own lock (grant block) for the same content.
 
 ---
 
-## 3. Бинарный формат файла v2
+## 2. Three Components of the System
 
-### 3.1. Почему бинарный, а не JSON
+### 2.1. Maxima — the Transport Layer
 
-Входная спецификация предлагала JSON-формат. Отклонено по трём причинам:
+**What it is:** a P2P messaging protocol built into Minima. It encrypts messages end-to-end automatically.
 
-1. **Zero-knowledge.** JSON-ключи (`"aesKey"`, `"signature"`, `"address"`) читаемы в hex-редакторе. Даже если значения зашифрованы, структура раскрывает что внутри. Бинарный формат — последовательность байтов без меток.
+**Role in the system:** delivers the grant packet (AES key + parameters) from the sender to the recipient.
 
-2. **Компактность.** JSON с base64 увеличивает размер на ~37% из-за кодирования. Бинарный формат хранит байты как есть.
+**Why Maxima, not a blockchain transaction:**
 
-3. **Совместимость.** v1 уже бинарный. Переход на JSON ломает обратную совместимость парсера и требует полной переделки `_assembleMinima` / `_parseMinima`.
+| Criterion | Maxima | Blockchain (state vars) |
+|-----------|--------|------------------------|
+| Privacy | E2E encryption, nobody sees it | State variables are public, visible to all |
+| Speed | Instant | Must wait for block inclusion |
+| Cost | Free | Requires Minima coins as input |
+| Data size | Sufficient for a grant packet | 256 variables with length constraints |
+| Online | Recipient must be online (or message waits) | Data is in the blockchain forever |
 
-### 3.2. Структура файла v2
+**Decision:** Maxima. Privacy and speed outweigh permanent storage. Permanent storage is provided by the file itself (grant blocks embedded in the file).
+
+### 2.2. The `.minima` File — Grant Block Storage
+
+**Role in the system:** grant blocks are embedded at the end of the file. The file becomes fully portable — it can be copied to a USB drive, emailed, or uploaded to the cloud. Any authorized owner can decrypt it on their node without any additional data.
+
+**Why in the file, not in the browser's IndexedDB:**
+
+| Criterion | In the file | IndexedDB |
+|-----------|------------|-----------|
+| Portability | File = everything needed | Grant is lost when changing devices |
+| Reliability | File can be backed up | Clearing the browser = losing the grant |
+| Simplicity | One file, one format | File ↔ DB synchronization required |
+| Recovery | Seed phrase + file = access | Seed phrase + file + IndexedDB = access |
+
+**Decision:** grant blocks live in the file. IndexedDB is used only as a cache hint (which block is ours) to optimize the number of approve requests.
+
+### 2.3. Blockchain — Notary (Optional, Phase 5)
+
+**Role in the system:** stores only the SHA-256 hash of the grantId. This allows:
+- Proving that a grant existed on a specific date
+- Revoking a grant (SB_REVOKE record)
+
+**Why only the hash, not the data:**
+
+On-chain data is public. If the full encrypted grant were stored, the fact that "address X gave someone access to something" would be visible. This reveals user behavior. A hash reveals nothing — 32 random bytes with no context.
+
+**Decision:** blockchain = optional notary only for revocation. Implemented last.
+
+---
+
+## 3. Binary File Format v2
+
+### 3.1. Why Binary, Not JSON
+
+The input specification proposed a JSON format. Rejected for three reasons:
+
+1. **Zero-knowledge.** JSON keys (`"aesKey"`, `"signature"`, `"address"`) are readable in a hex editor. Even if the values are encrypted, the structure reveals what is inside. The binary format is a sequence of bytes with no labels.
+
+2. **Compactness.** JSON with base64 increases file size by ~37% due to encoding. Binary format stores bytes as-is.
+
+3. **Compatibility.** v1 is already binary. Switching to JSON breaks backward compatibility of the parser and requires a complete rewrite of `_assembleMinima` / `_parseMinima`.
+
+### 3.2. v2 File Structure
 
 ```
-Секция              Offset    Размер       Поле              Содержимое
+Section             Offset    Size         Field             Contents
 ──────────────────  ──────    ──────       ────              ──────────
 
-ЗАГОЛОВОК           0         4            MAGIC             0x4D 0x49 0x4E 0x00 ("MIN\0")
+HEADER              0         4            MAGIC             0x4D 0x49 0x4E 0x00 ("MIN\0")
                     4         1            VERSION           0x02
 
-PRIMARY-БЛОК        5         32           Challenge         32 случайных байт
-                    37        2            EncKeyLen         Длина encKeyData (LE uint16)
+PRIMARY BLOCK       5         32           Challenge         32 random bytes
+                    37        2            EncKeyLen         Length of encKeyData (LE uint16)
                     39        ~76          EncKeyData        salt(16) + iv(12) + wrappedAESKey(48)
-                    ~115      4            EncMetaLen        Длина encMeta (LE uint32)
+                    ~115      4            EncMetaLen        Length of encMeta (LE uint32)
                     ~119      ~4340        EncMeta           AES-GCM(addr + pk + sig + IV + tag)
 
-CIPHERTEXT          ~4459     4            CiphertextLen     Длина ciphertext (LE uint32)
-                    ~4463     N            Ciphertext        AES-256-GCM зашифрованные данные файла
+CIPHERTEXT          ~4459     4            CiphertextLen     Length of ciphertext (LE uint32)
+                    ~4463     N            Ciphertext        AES-256-GCM encrypted file data
 
-GRANT-СЕКЦИЯ        ~4463+N   2            GrantCount        Количество grant-блоков (LE uint16)
+GRANT SECTION       ~4463+N   2            GrantCount        Number of grant blocks (LE uint16)
 
-                    [для каждого grant-блока]:
-                              4            GrantBlockLen     Полный размер этого блока (LE uint32)
-                              32           GrantChallenge    Challenge получателя
-                              2            GrantEncKeyLen    Длина encKeyData получателя (LE uint16)
-                              ~76          GrantEncKeyData   salt + iv + wrappedAESKey (под KEK получателя)
-                              4            GrantEncMetaLen   Длина encMeta получателя (LE uint32)
-                              ~4340        GrantEncMeta      AES-GCM(addr + pk + sig + IV + tag получателя)
+                    [for each grant block]:
+                              4            GrantBlockLen     Full size of this block (LE uint32)
+                              32           GrantChallenge    Recipient's challenge
+                              2            GrantEncKeyLen    Length of recipient's encKeyData (LE uint16)
+                              ~76          GrantEncKeyData   salt + iv + wrappedAESKey (under recipient's KEK)
+                              4            GrantEncMetaLen   Length of recipient's encMeta (LE uint32)
+                              ~4340        GrantEncMeta      AES-GCM(addr + pk + sig + IV + tag of recipient)
 ```
 
-### 3.3. Что изменилось по сравнению с v1
+### 3.3. What Changed Compared to v1
 
-| Изменение | Зачем |
-|-----------|-------|
-| VERSION = 2 (вместо 1) | Парсер различает форматы: v1 = без grant'ов, v2 = с grant'ами |
-| CiphertextLen (4 байт) перед ciphertext | В v1 ciphertext занимал всё до конца файла. В v2 после ciphertext идут grant-блоки, поэтому нужно знать где ciphertext заканчивается |
-| GrantCount + массив grant-блоков | Собственно хранилище grant'ов |
+| Change | Reason |
+|--------|--------|
+| VERSION = 2 (instead of 1) | The parser distinguishes formats: v1 = no grants, v2 = with grants |
+| CiphertextLen (4 bytes) before ciphertext | In v1, ciphertext occupied everything to the end of the file. In v2, grant blocks follow the ciphertext, so we need to know where the ciphertext ends |
+| GrantCount + array of grant blocks | The actual grant storage |
 
-### 3.4. Обратная совместимость
+### 3.4. Backward Compatibility
 
-Парсер v2 читает файлы v1: если VERSION = 1, ciphertext = всё до конца файла, GrantCount = 0.
+The v2 parser reads v1 files: if VERSION = 1, ciphertext = everything to the end of the file, GrantCount = 0.
 
-Парсер v1 НЕ читает файлы v2: выбросит ошибку «Неподдерживаемая версия: 2». Это ожидаемое поведение — старая версия приложения не знает о grant'ах.
+The v1 parser does NOT read v2 files: it will throw an error "Unsupported version: 2". This is expected behavior — an older version of the application is unaware of grants.
 
-### 3.5. Что видит злоумышленник
+### 3.5. What an Attacker Sees
 
 ```
-MIN\0                         ← формат файла
-0x02                          ← версия 2 (есть grant'ы)
-[32 случайных байт]           ← primary challenge
-[зашифрованный блоб]          ← encKeyData (нечитаем)
-[зашифрованный блоб]          ← encMeta (нечитаем)
-[зашифрованный блоб]          ← ciphertext (нечитаем)
-0x0001                        ← 1 grant-блок (видно количество получателей)
-[32 случайных байт]           ← grant challenge
-[зашифрованный блоб]          ← grant encKeyData (нечитаем)
-[зашифрованный блоб]          ← grant encMeta (нечитаем)
+MIN\0                         ← file format
+0x02                          ← version 2 (grants present)
+[32 random bytes]             ← primary challenge
+[encrypted blob]              ← encKeyData (unreadable)
+[encrypted blob]              ← encMeta (unreadable)
+[encrypted blob]              ← ciphertext (unreadable)
+0x0001                        ← 1 grant block (number of recipients visible)
+[32 random bytes]             ← grant challenge
+[encrypted blob]              ← grant encKeyData (unreadable)
+[encrypted blob]              ← grant encMeta (unreadable)
 ```
 
-**Утечка информации:** злоумышленник узнаёт количество grant-блоков (= сколько людей имеют доступ). Все остальные данные — зашифрованный шум.
+**Information leak:** the attacker learns the number of grant blocks (= how many people have access). All other data is encrypted noise.
 
-**Если утечка количества критична** (фаза 5+): можно добавить padding — фейковые grant-блоки с рандомными данными, всегда до фиксированного числа (например, 8). При расшифровке фейковые блоки не пройдут проверку AES-GCM и будут пропущены. Это увеличит размер файла на ~35 КБ, но полностью скроет количество получателей. Решение оставлено на будущее — для первой версии это избыточно.
+**If leaking the count is critical** (phase 5+): padding can be added — fake grant blocks with random data, always up to a fixed number (e.g., 8). During decryption, fake blocks fail the AES-GCM check and are skipped. This increases file size by ~35 KB but completely hides the number of recipients. This is left for the future — it is excessive for the first version.
 
 ---
 
-## 4. Grant-пакет: что передаётся через Maxima
+## 4. Grant Packet: What Is Transmitted via Maxima
 
-### 4.1. Состав
+### 4.1. Contents
 
 ```
 grantPacket = {
     type:      "seedbound_grant",
     version:   1,
-    fileHash:  <SHA-256(ciphertext), 32 байт, hex>,
-    aesKey:    <256-бит AES ключ, 32 байт, base64>,
-    fileIV:    <12 байт, base64>,
-    fileTag:   <16 байт, base64>
+    fileHash:  <SHA-256(ciphertext), 32 bytes, hex>,
+    aesKey:    <256-bit AES key, 32 bytes, base64>,
+    fileIV:    <12 bytes, base64>,
+    fileTag:   <16 bytes, base64>
 }
 ```
 
-### 4.2. Что НЕ включаем и почему
+### 4.2. What Is NOT Included and Why
 
-| Поле | Почему не включаем |
-|------|-------------------|
-| `originalChallenge` | Не нужен получателю. Получатель создаёт свой challenge |
-| `originalWOTSSignature` | Не нужна. Получатель создаёт свою подпись на своей ноде |
-| `senderAddress` / `senderPublicKey` | Не нужны. Получатель не проверяет подпись отправителя — он подписывает файл сам |
-| `senderMaximaContact` | Получатель и так знает от кого пришло сообщение (Maxima идентифицирует отправителя) |
-| `recipientMaximaPubKey` | Публичный ключ получателя не должен появляться в открытом виде нигде, кроме момента отправки |
-| `grantTimestamp` | Timestamp не несёт криптографической функции и добавляет метаданные |
-| `grantSignature` (W-OTS+ подпись grant'а) | Maxima уже аутентифицирует отправителя E2E. Дополнительная подпись = лишний approve + 4 КБ данных. Добавим в будущем если нужна верификация grant'а вне Maxima |
+| Field | Why not included |
+|-------|----------------|
+| `originalChallenge` | Not needed by the recipient. The recipient creates their own challenge |
+| `originalWOTSSignature` | Not needed. The recipient creates their own signature on their own node |
+| `senderAddress` / `senderPublicKey` | Not needed. The recipient does not verify the sender's signature — they sign the file themselves |
+| `senderMaximaContact` | The recipient already knows who sent the message (Maxima identifies the sender) |
+| `recipientMaximaPubKey` | The recipient's public key should not appear in plaintext anywhere except at the moment of sending |
+| `grantTimestamp` | Timestamp serves no cryptographic purpose and adds metadata |
+| `grantSignature` (W-OTS+ signature of the grant) | Maxima already authenticates the sender E2E. An additional signature = an extra approve + 4 KB of data. Will be added in the future if verification of the grant outside Maxima is needed |
 
-### 4.3. Почему grant минимален
+### 4.3. Why the Grant Is Minimal
 
-Принцип: передать через Maxima ровно то, что получатель не может создать сам. Получатель не может создать:
-- AES-ключ (только отправитель знает его)
-- fileIV и fileTag (только отправитель знает их)
-- fileHash (получатель может вычислить сам, но файл может быть ещё в пути)
+Principle: transmit via Maxima exactly what the recipient cannot create themselves. The recipient cannot create:
+- The AES key (only the sender knows it)
+- The fileIV and fileTag (only the sender knows them)
+- The fileHash (the recipient can compute it, but the file may still be in transit)
 
-Всё остальное (адрес, публичный ключ, подпись, challenge, KEK) получатель создаёт сам на своей ноде.
+Everything else (address, public key, signature, challenge, KEK) the recipient creates themselves on their own node.
 
 ---
 
-## 5. Процесс: отправитель делится доступом
+## 5. Process: Sender Shares Access
 
-### 5.1. Пользовательский сценарий
+### 5.1. User Scenario
 
-1. Отправитель открывает приложение
-2. Нажимает «Поделиться» на зашифрованном файле
-3. Загружает файл `.minima`
-4. Выбирает получателя из списка Maxima-контактов
-5. Подтверждает отправку
-6. Видит: «Grant отправлен»
+1. The sender opens the application
+2. Clicks "Share" on the encrypted file
+3. Loads the `.minima` file
+4. Selects a recipient from the Maxima contacts list
+5. Confirms the send
+6. Sees: "Grant sent"
 
-### 5.2. Технические шаги
+### 5.2. Technical Steps
 
 ```
-1. Загрузка и парсинг файла .minima
+1. Load and parse the .minima file
    └─ _parseMinima(file) → { challenge, encKeyData, encMeta, ciphertext }
 
-2. Расшифровка на ноде отправителя (стандартный flow)
+2. Decrypt on the sender's node (standard flow)
    ├─ seedrandom(challenge) → seedHash                    [APPROVE 1]
    ├─ _deriveKEK(seedHash, "qcrypto-kek-v1") → KEK_key
    ├─ _decryptAESKey(encKeyData, seedHash) → aesKey
    ├─ _deriveKEK(seedHash, "qcrypto-meta-v1") → KEK_meta
    └─ _decryptMetadata(encMeta, seedHash) → { fileIV, fileTag, ... }
 
-3. Вычисление fileHash
+3. Compute fileHash
    └─ SHA-256(ciphertext) → fileHash
 
-4. Сборка grant-пакета
+4. Assemble grant packet
    └─ { type, version, fileHash, aesKey, fileIV, fileTag }
 
-5. Отправка через Maxima
+5. Send via Maxima
    └─ MDS.cmd('maxima action:send contact:<id> application:seedbound data:<json>')
 
-6. Зачистка чувствительных данных из памяти
-   └─ _zeroFill(aesKey), _zeroFill(seedHash), и т.д.
+6. Zero out sensitive data from memory
+   └─ _zeroFill(aesKey), _zeroFill(seedHash), etc.
 ```
 
-**Количество approve:** 1 (seedrandom для расшифровки своего файла).
+**Number of approves:** 1 (seedrandom to decrypt your own file).
 
-### 5.3. Команда Maxima
+### 5.3. Maxima Command
 
 ```javascript
 const msg = JSON.stringify({
@@ -231,185 +231,185 @@ const msg = JSON.stringify({
 MDS.cmd('maxima action:send contact:' + contactId + ' application:seedbound data:' + msg, callback);
 ```
 
-Параметр `application:seedbound` — фильтр. Получатель слушает только сообщения с `application === "seedbound"`.
+The `application:seedbound` parameter is a filter. The recipient only listens for messages where `application === "seedbound"`.
 
-### 5.4. Новые MDS-команды
+### 5.4. New MDS Commands
 
-| Команда | Назначение | Approve |
-|---------|-----------|---------|
-| `maxcontacts` | Получить список контактов для UI | Нет |
-| `maxima action:send` | Отправить grant | Нет |
+| Command | Purpose | Approve |
+|---------|---------|---------|
+| `maxcontacts` | Get the contacts list for the UI | No |
+| `maxima action:send` | Send the grant | No |
 
 ---
 
-## 6. Процесс: получатель привязывает grant
+## 6. Process: Recipient Binds the Grant
 
-### 6.1. Пользовательский сценарий
+### 6.1. User Scenario
 
-1. Получатель видит уведомление: «Вам дали доступ к файлу»
-2. Загружает файл `.minima` (отправитель передал его отдельно — почта, мессенджер, флешка)
-3. Нажимает «Привязать к моей ноде»
-4. Подтверждает 2 операции в ноде (подпись + seedrandom)
-5. Скачивает обновлённый файл с встроенным grant-блоком
+1. The recipient sees a notification: "You have been granted access to a file"
+2. Loads the `.minima` file (the sender delivered it separately — via email, messenger, USB drive)
+3. Clicks "Bind to my node"
+4. Confirms 2 operations in the node (sign + seedrandom)
+5. Downloads the updated file with the grant block embedded
 
-### 6.2. Технические шаги
+### 6.2. Technical Steps
 
 ```
-1. Приём grant-пакета через Maxima listener
+1. Receive grant packet via Maxima listener
    └─ MDS.init → event "MAXIMA" → data.application === "seedbound"
 
-2. Загрузка файла .minima
+2. Load the .minima file
    └─ _parseMinima(file) → { ciphertext, ... }
 
-3. Проверка fileHash
+3. Verify fileHash
    └─ SHA-256(ciphertext) === grantPacket.fileHash?
-      ├─ Да → продолжаем
-      └─ Нет → ошибка: «Этот grant не для этого файла»
+      ├─ Yes → continue
+      └─ No → error: "This grant does not match this file"
 
-4. Создание одноразового адреса на ноде получателя
+4. Create a one-time address on the recipient's node
    └─ newaddress → { address, publickey }
 
-5. Подпись ciphertext ключом получателя
+5. Sign the ciphertext with the recipient's key
    └─ sign(SHA-256(ciphertext + address), publickey)              [APPROVE 1]
-   └─ → signature (~4125 байт)
+   └─ → signature (~4125 bytes)
 
-6. Генерация challenge и seedHash получателя
-   ├─ challenge = crypto.getRandomValues(32 байт)
+6. Generate challenge and seedHash for the recipient
+   ├─ challenge = crypto.getRandomValues(32 bytes)
    └─ seedrandom(challenge) → seedHash                            [APPROVE 2]
 
-7. Шифрование AES-ключа под KEK получателя
+7. Encrypt the AES key under the recipient's KEK
    ├─ PBKDF2-SHA512(seedHash, "qcrypto-kek-v1" + salt, 250k) → KEK_key
    └─ AES-GCM-wrap(KEK_key, aesKey) → grantEncKeyData
 
-8. Шифрование метаданных под KEK_meta получателя
+8. Encrypt metadata under the recipient's KEK_meta
    ├─ PBKDF2-SHA512(seedHash, "qcrypto-meta-v1" + salt, 250k) → KEK_meta
    └─ AES-GCM(KEK_meta, address + publickey + signature + fileIV + fileTag) → grantEncMeta
 
-9. Сборка grant-блока
+9. Assemble the grant block
    └─ { challenge, grantEncKeyData, grantEncMeta }
 
-10. Встраивание grant-блока в файл
-    ├─ Если файл v1 → конвертировать в v2 (добавить CiphertextLen, GrantCount=1)
-    └─ Если файл v2 → GrantCount++ и дописать блок
+10. Embed the grant block into the file
+    ├─ If file is v1 → convert to v2 (add CiphertextLen, GrantCount=1)
+    └─ If file is v2 → GrantCount++ and append the block
 
-11. Скачивание обновлённого файла
+11. Download the updated file
 
-12. Зачистка всех чувствительных данных
+12. Zero out all sensitive data
     └─ _zeroFill(aesKey, seedHash, signature, fileIV, fileTag)
 
-13. Сохранение подсказки в IndexedDB
+13. Save hint to IndexedDB
     └─ { fileHash → grantIndex }
 ```
 
-**Количество approve:** 2 (sign + seedrandom). Идентично шифрованию нового файла.
+**Number of approves:** 2 (sign + seedrandom). Identical to encrypting a new file.
 
-### 6.3. Почему получатель создаёт свою подпись
+### 6.3. Why the Recipient Creates Their Own Signature
 
-Grant-пакет не содержит подпись отправителя. Получатель подписывает ciphertext своим W-OTS+ ключом. Причины:
+The grant packet does not contain the sender's signature. The recipient signs the ciphertext with their own W-OTS+ key. Reasons:
 
-1. **checkaddress:** при расшифровке проверяется `checkaddress(address)`. Если бы в grant-блоке был адрес отправителя — на ноде получателя проверка не пройдёт (`relevant: false`). Адрес должен принадлежать ноде, которая расшифровывает.
+1. **checkaddress:** during decryption, `checkaddress(address)` is verified. If the grant block contained the sender's address, the check would fail on the recipient's node (`relevant: false`). The address must belong to the node that is decrypting.
 
-2. **Целостность:** получатель лично убеждается, что ciphertext не был изменён с момента получения. Его подпись — его гарантия.
+2. **Integrity:** the recipient personally verifies that the ciphertext has not been altered since it was received. Their signature is their guarantee.
 
-3. **Независимость:** каждый grant-блок полностью автономен. Для расшифровки не нужны данные из primary-блока или из других grant'ов.
+3. **Independence:** each grant block is completely self-contained. Decryption requires no data from the primary block or from other grants.
 
 ---
 
-## 7. Процесс: расшифровка multi-bound файла
+## 7. Process: Decrypting a Multi-Bound File
 
-### 7.1. Алгоритм
+### 7.1. Algorithm
 
 ```
 1. _parseMinima(file)
-   ├─ Если VERSION = 1 → стандартный v1 flow (без grant'ов)
-   └─ Если VERSION = 2 → извлечь primaryBlock + grantBlocks[]
+   ├─ If VERSION = 1 → standard v1 flow (no grants)
+   └─ If VERSION = 2 → extract primaryBlock + grantBlocks[]
 
-2. Определить какой блок наш
-   ├─ Проверить IndexedDB: есть ли подсказка для этого fileHash?
-   │   ├─ Есть → попробовать указанный блок первым
-   │   └─ Нет → перебирать все блоки по порядку
+2. Determine which block is ours
+   ├─ Check IndexedDB: is there a hint for this fileHash?
+   │   ├─ Yes → try the indicated block first
+   │   └─ No → iterate through all blocks in order
    └─ blocks = [primaryBlock, ...grantBlocks]
 
-3. Для каждого блока:
+3. For each block:
    a) seedrandom(block.challenge) → seedHash                      [APPROVE]
-   b) Попытка: _decryptMetadata(block.encMeta, seedHash)
-      ├─ Успех → это наш блок → продолжить расшифровку
-      └─ AES-GCM ошибка → не наш блок → следующий
+   b) Try: _decryptMetadata(block.encMeta, seedHash)
+      ├─ Success → this is our block → continue decryption
+      └─ AES-GCM error → not our block → try next
 
-4. Если наш блок найден:
-   ├─ Извлечь address, publickey, signature, fileIV, fileTag
+4. If our block is found:
+   ├─ Extract address, publickey, signature, fileIV, fileTag
    ├─ checkaddress(address) → relevant: true
    ├─ verify(ciphertext, signature, publickey) → valid
    ├─ _decryptAESKey(block.encKeyData, seedHash) → aesKey
-   └─ AES-GCM-decrypt(aesKey, fileIV, fileTag, ciphertext) → файл
+   └─ AES-GCM-decrypt(aesKey, fileIV, fileTag, ciphertext) → file
 
-5. Если ни один блок не подошёл:
-   └─ Ошибка: «У вас нет доступа к этому файлу»
+5. If no block matched:
+   └─ Error: "You do not have access to this file"
 ```
 
-### 7.2. Проблема множественных approve
+### 7.2. The Multiple-Approves Problem
 
-Каждая попытка `seedrandom` = 1 approve в ноде. Если в файле 5 блоков и наш — пятый, пользователю придётся 5 раз подтвердить в ноде.
+Each `seedrandom` attempt = 1 approve in the node. If a file has 5 blocks and ours is the fifth, the user must confirm 5 times in the node.
 
-**Решение 1: IndexedDB-подсказка (основное)**
+**Solution 1: IndexedDB hint (primary)**
 
-При привязке grant'а (шаг 6.2, пункт 13) приложение запоминает: `fileHash → grantIndex`. При расшифровке первым делом проверяется IndexedDB. Если подсказка есть — пробуется только один блок (1 approve).
+When binding a grant (step 6.2, item 13), the application remembers: `fileHash → grantIndex`. During decryption, IndexedDB is checked first. If a hint exists — only one block is tried (1 approve).
 
-Работает на устройстве, на котором привязывали grant. На новом устройстве (восстановление из seed phrase) подсказки нет → перебор.
+Works on the device where the grant was bound. On a new device (restored from seed phrase), there is no hint → iteration.
 
-**Решение 2: Проверка всех challenge за один approve (оптимизация)**
+**Solution 2: Check all challenges in one approve (optimization)**
 
-Вместо N вызовов `seedrandom` можно:
-1. Собрать все challenge из файла
-2. Вызвать `seedrandom` для первого challenge
-3. Попробовать расшифровать метаданные этого блока
-4. Если не получилось — вызвать для следующего
-5. Стоп на первом успешном
+Instead of N calls to `seedrandom`, you can:
+1. Collect all challenges from the file
+2. Call `seedrandom` for the first challenge
+3. Try to decrypt that block's metadata
+4. If it fails — call for the next one
+5. Stop on the first success
 
-В худшем случае — N approve. В среднем — N/2. С IndexedDB — всегда 1.
+Worst case: N approves. On average: N/2. With IndexedDB: always 1.
 
-**Решение 3: Открытый hint (отклонено)**
+**Solution 3: Open hint (rejected)**
 
-Хранить в каждом блоке первые 4 байт от SHA-256(seedHash) в открытом виде. Приложение вызывает seedrandom один раз, сравнивает hint, расшифровывает нужный блок.
+Store the first 4 bytes of SHA-256(seedHash) in plaintext in each block. The application calls seedrandom once, compares the hint, and decrypts the correct block.
 
-Отклонено: hint связывает challenge с seedHash. Теоретически атакующий, знающий hint, может сузить пространство поиска seed phrase. Незначительный риск, но нарушает zero-knowledge.
+Rejected: the hint links the challenge to the seedHash. Theoretically an attacker who knows the hint can narrow the search space for the seed phrase. A minor risk, but it violates zero-knowledge.
 
-**Итоговое решение:** IndexedDB-подсказка + последовательный перебор как fallback. Для файлов с 1–3 получателями (типичный сценарий) перебор занимает 1–3 approve — приемлемо.
+**Final decision:** IndexedDB hint + sequential iteration as fallback. For files with 1–3 recipients (typical scenario), iteration requires 1–3 approves — acceptable.
 
 ---
 
-## 8. Архитектура кода: два файла
+## 8. Code Architecture: Two Files
 
-### 8.1. Принцип разделения
+### 8.1. Separation Principle
 
 ```
-MinimaCrypto.js    →  шифрование / расшифровка (v1, без изменений)
-MultiBound.js      →  создание grant'а / привязка / Maxima / формат v2
+MinimaCrypto.js    →  encryption / decryption (v1, unchanged)
+MultiBound.js      →  grant creation / binding / Maxima / v2 format
 index.html         →  <script src="MinimaCrypto.js">
                       <script src="MultiBound.js">
 ```
 
-**Почему два файла, а не один:**
-- `MinimaCrypto.js` уже оттестирован и стабилен. Любое изменение в нём рискует сломать рабочее шифрование/расшифровку
-- Grant-логика — отдельная функциональность с отдельным UI и отдельным flow
-- Два файла можно разрабатывать и тестировать независимо
-- При ошибке в MultiBound.js основное шифрование продолжает работать
+**Why two files, not one:**
+- `MinimaCrypto.js` is already tested and stable. Any change to it risks breaking working encryption/decryption
+- Grant logic is separate functionality with its own UI and its own flow
+- Two files can be developed and tested independently
+- If MultiBound.js has a bug, core encryption continues to work
 
-**Как MultiBound.js использует MinimaCrypto.js:**
+**How MultiBound.js uses MinimaCrypto.js:**
 
-`MultiBound.js` обращается к `window.MinimaCrypto` (глобальный экземпляр, уже создаётся в MinimaCrypto.js) и вызывает его публичные и внутренние методы:
+`MultiBound.js` accesses `window.MinimaCrypto` (the global instance, already created in MinimaCrypto.js) and calls its public and internal methods:
 
 ```javascript
 const mc = window.MinimaCrypto;
 
-mc.decryptFile(blob)          // расшифровка при создании grant'а
-mc._deriveKEK(seedHash, ctx)  // создание KEK для grant-блока
-mc._encryptAESKey(...)        // обёртка AES-ключа
-mc._encryptMetadata(...)      // шифрование метаданных
-mc._createNewAddress()        // одноразовый адрес для получателя
-mc._signWithMinima(...)       // W-OTS+ подпись
-mc._getSeedRandom(...)        // seedrandom для получателя
-mc._uint16ToLE(...)           // утилиты для бинарного формата
+mc.decryptFile(blob)          // decryption when creating a grant
+mc._deriveKEK(seedHash, ctx)  // creating KEK for a grant block
+mc._encryptAESKey(...)        // wrapping the AES key
+mc._encryptMetadata(...)      // encrypting metadata
+mc._createNewAddress()        // one-time address for the recipient
+mc._signWithMinima(...)       // W-OTS+ signature
+mc._getSeedRandom(...)        // seedrandom for the recipient
+mc._uint16ToLE(...)           // utilities for binary format
 mc._uint32ToLE(...)
 mc._uint32FromLE(...)
 mc._bufferToHex(...)
@@ -417,40 +417,36 @@ mc._hexToBuffer(...)
 mc._zeroFill(...)
 ```
 
-Никакие изменения в MinimaCrypto.js не требуются. Все нужные методы уже существуют и доступны через экземпляр класса.
+No changes to MinimaCrypto.js are required. All needed methods already exist and are accessible through the class instance.
 
-### 8.2. MinimaCrypto.js — без изменений
+### 8.2. MinimaCrypto.js — No Changes
 
-| Функция | Статус |
-|---------|--------|
-| `encryptFile` | Без изменений. Создаёт v1 файл |
-| `decryptFile` | Без изменений. Читает v1 файл |
-| `_parseMinima` | Без изменений. Парсит v1 формат |
-| `_assembleMinima` | Без изменений. Собирает v1 формат |
-| Все внутренние методы | Без изменений. Используются MultiBound.js через window.MinimaCrypto |
+| Function | Status |
+|----------|--------|
+| `encryptFile` | Unchanged. Creates v1 file |
+| `decryptFile` | Unchanged. Reads v1 file |
+| `_parseMinima` | Unchanged. Parses v1 format |
+| `_assembleMinima` | Unchanged. Assembles v1 format |
+| All internal methods | Unchanged. Used by MultiBound.js via window.MinimaCrypto |
 
-### 8.3. MultiBound.js — новый файл
+### 8.3. MultiBound.js — New File
 
-| Функция | Что делает |
-|---------|-----------|
-| `createGrant(minimaBlob)` | Расшифровывает свой файл (через mc.decryptFile), извлекает AES-ключ + fileIV + fileTag, возвращает grant-пакет |
-| `sendGrant(contactId, grantPacket)` | Отправляет grant через Maxima |
-| `onGrantReceived(callback)` | Listener на входящие grant'ы через Maxima |
-| `bindGrant(minimaBlob, grantPacket)` | Привязка grant'а: newaddress → sign → seedrandom → шифрование → grant-блок |
-| `addGrantToFile(minimaBlob, grantBlock)` | Встраивает grant-блок в файл (v1→v2 или v2→v2+) |
-| `decryptMultiBound(minimaBlob)` | Расшифровка v2 файла: перебор блоков, fallback на grant'ы |
-| `_parseMinima_v2(fileBlob)` | Парсер v2: читает primary-блок + grant-секцию |
-| `_assembleMinima_v2(primaryData, grantBlocks, ciphertext)` | Сборка файла v2 |
-| `_getGrantHint(fileHash)` | Чтение IndexedDB-подсказки |
-| `_saveGrantHint(fileHash, index)` | Запись IndexedDB-подсказки |
+| Function | What it does |
+|----------|-------------|
+| `createGrant(minimaBlob)` | Decrypts the sender's file, extracts AES key + fileIV + fileTag, returns the grant packet |
+| `sendGrant(contactId, grantPacket)` | Sends the grant via Maxima |
+| `onGrantReceived(callback)` | Listener for incoming grants via Maxima |
+| `bindGrant(minimaBlob, grantPacket)` | Grant binding: newaddress → sign → seedrandom → encrypt → grant block |
+| `addGrantToFile(minimaBlob, grantBlock)` | Embeds a grant block into the file (v1→v2 or v2→v2+) |
+| `decryptMultiBound(minimaBlob)` | Decryption of a v2 file: iterate through blocks, fall back to grants |
+| `_parseMinima_v2(fileBlob)` | v2 parser: reads primary block + grant section |
+| `_assembleMinima_v2(primaryData, grantBlocks, ciphertext)` | Assembles v2 file |
+| `_getGrantHint(fileHash)` | Reads the IndexedDB hint |
+| `_saveGrantHint(fileHash, index)` | Writes the IndexedDB hint |
 
-### 8.4. Как decryptFile узнаёт о v2?
+### 8.4. How Does decryptFile Know About v2?
 
-Два варианта:
-
-**Вариант A (рекомендуемый): MultiBound.js перехватывает вызов**
-
-В `index.html` логика расшифровки проверяет версию файла перед вызовом:
+In `index.html`, decryption logic checks the file version before calling:
 
 ```javascript
 async function decryptFile() {
@@ -466,230 +462,137 @@ async function decryptFile() {
 }
 ```
 
-MinimaCrypto.js вообще не знает о v2. MultiBound.js парсит v2, извлекает нужный блок, и для финальной расшифровки AES-данных использует методы MinimaCrypto.
+MinimaCrypto.js knows nothing about v2. MultiBound.js parses v2, extracts the relevant block, and uses MinimaCrypto methods for the final AES data decryption.
 
-**Вариант B: обёртка в MultiBound.js**
+### 8.5. index.html — Changes
 
-```javascript
-window.MultiBound.decrypt = async function(file, options) {
-    try {
-        return await mc.decryptFile(file, options);  // попробовать v1
-    } catch (e) {
-        return await this.decryptMultiBound(file, options);  // fallback на v2
-    }
-};
-```
+| Change | What to do |
+|--------|-----------|
+| Include MultiBound.js | `<script src="MultiBound.js"></script>` after MinimaCrypto.js |
+| "Share" section (sidebar) | Replace placeholder with working UI: file selection, contact selection, send button |
+| Incoming grant notification | Toast notification on MAXIMA event |
+| "Bind" modal window | File upload, binding progress (7 steps), download button |
+| decryptFile() function | Check version before calling: v1 → MinimaCrypto, v2 → MultiBound |
 
-Вариант A чище — нет лишних try/catch и ненужных расшифровок.
-
-### 8.5. index.html — изменения
-
-| Изменение | Что делать |
-|-----------|-----------|
-| Подключение MultiBound.js | `<script src="MultiBound.js"></script>` после MinimaCrypto.js |
-| Раздел «Поделиться» (sidebar) | Уже есть плейсхолдер, заменить на рабочий UI: выбор файла, выбор контакта, кнопка отправки |
-| Уведомление о входящем grant'е | Всплывающее уведомление при событии MAXIMA |
-| Модальное окно «Привязать» | Загрузка файла, прогресс привязки (7 шагов), кнопка скачивания |
-| Функция decryptFile() | Проверка version перед вызовом: v1 → MinimaCrypto, v2 → MultiBound |
-
-### 8.6. Структура файлов проекта
+### 8.6. Project File Structure
 
 ```
 seedbound/
-├── index.html              UI (sidebar + страницы + модалки)
-├── MinimaCrypto.js         Шифрование/расшифровка v1 (без изменений)
-├── MultiBound.js           Grant-логика + формат v2
-├── mds.js                  MDS библиотека Minima
-├── dapp.conf               Манифест MiniDapp
-└── favicon.ico             Иконка
+├── index.html              UI (sidebar + pages + modals)
+├── MinimaCrypto.js         Encryption/decryption v1 (unchanged)
+├── MultiBound.js           Grant logic + v2 format
+├── mds.js                  Minima MDS library
+├── dapp.conf               MiniDapp manifest
+└── favicon.ico             Icon
 ```
 
-### 8.7. Новые MDS-команды
+### 8.7. New MDS Commands
 
-| Команда | Где используется |
-|---------|-----------------|
-| `maxcontacts` | UI: загрузка списка контактов |
-| `maxima action:send contact:ID application:seedbound data:JSON` | Отправка grant-пакета |
-| MDS.init → `event === "MAXIMA"` | Приём grant-пакета |
+| Command | Where used |
+|---------|-----------|
+| `maxcontacts` | UI: loading the contacts list |
+| `maxima action:send contact:ID application:seedbound data:JSON` | Sending the grant packet |
+| MDS.init → `event === "MAXIMA"` | Receiving the grant packet |
 
-### 8.5. IndexedDB
+### 8.8. IndexedDB
 
-| Ключ | Значение | Когда записывается |
-|------|----------|-------------------|
-| `grant:<fileHash>` | `{ grantIndex: N, timestamp: Date }` | После привязки grant'а (шаг 6.2) |
-
----
-
-## 9. Безопасность
-
-### 9.1. Обязательные требования
-
-| Требование | Реализация |
-|-----------|-----------|
-| AES-ключ не хранится в открытом виде | После привязки grant'а aesKey стирается из памяти (`_zeroFill`). В файле хранится только внутри encKeyData, зашифрованного KEK |
-| AES-ключ передаётся только через Maxima | Maxima шифрует E2E. Ключ не появляется ни в блокчейне, ни в localStorage, ни в логах |
-| fileHash проверяется при привязке | SHA-256(ciphertext) === grantPacket.fileHash. Защита от подмены файла |
-| Каждый grant-блок имеет свою W-OTS+ подпись | Получатель подписывает ciphertext своим одноразовым ключом |
-| Каждый grant-блок имеет свой challenge и seedHash | Компрометация одного grant'а не раскрывает другие |
-| Zero-knowledge сохраняется | В файле видны только challenge'и (32 случайных байт каждый) + GrantCount |
-| Чувствительные данные зачищаются | `_zeroFill` на aesKey, seedHash, signature, fileIV, fileTag в finally-блоках |
-
-### 9.2. Модель угроз (дополнение к v1)
-
-| Угроза | Защита |
-|--------|--------|
-| Перехват grant-пакета в Maxima | Maxima шифрует E2E. Без приватного ключа получателя grant нечитаем |
-| Подмена grant-пакета (MITM) | Maxima аутентифицирует отправителя. Подмена невозможна без контроля над нодой отправителя |
-| Отправитель хочет отозвать grant | Фаза 5: SB_REVOKE на блокчейне. До фазы 5: невозможно — получатель уже имеет grant-блок в файле |
-| Получатель пересылает файл третьему лицу | Третье лицо без grant'а не расшифрует. Но получатель может создать grant для третьего лица. Это by design — если дал доступ, получатель имеет AES-ключ |
-| Количество получателей раскрыто | GrantCount виден. Не критично для MVP. Решение: padding фейковыми блоками (фаза 5+) |
-
-### 9.3. Доверительная модель
-
-**Отправитель доверяет получателю.** Это фундаментальное допущение. Отправитель добровольно передаёт AES-ключ. После этого получатель технически может:
-- Расшифровать файл
-- Создать grant для кого-то ещё
-- Сохранить AES-ключ
-
-Это аналогично тому, как работает любая система совместного доступа (Google Drive, Dropbox). Если вы дали человеку доступ — он может скопировать файл. Техническое ограничение пересылки (DRM) не является целью этого проекта.
+| Key | Value | When written |
+|-----|-------|-------------|
+| `grant:<fileHash>` | `{ grantIndex: N, timestamp: Date }` | After binding the grant |
 
 ---
 
-## 10. Обработка ошибок
+## 9. Security
 
-| Ситуация | Сообщение пользователю | Техническая причина |
-|----------|----------------------|-------------------|
-| Grant не для этого файла | «Этот ключ доступа не подходит к загруженному файлу» | SHA-256(ciphertext) ≠ grantPacket.fileHash |
-| Получатель не онлайн | «Получатель сейчас не в сети. Сообщение будет доставлено когда он подключится» | Maxima поведение при офлайн получателе (уточнить) |
-| Нет контактов в Maxima | «Добавьте контакт в ноде Minima, чтобы поделиться файлом» | `maxcontacts` вернул пустой список |
-| Ни один блок не подошёл | «У вас нет доступа к этому файлу. Попросите владельца дать вам доступ» | Все попытки расшифровки encMeta вернули ошибку AES-GCM |
-| Grant уже привязан (повторная привязка) | «Этот файл уже привязан к вашей ноде» | fileHash уже есть в IndexedDB |
-| Нода отключилась во время привязки | «Соединение с нодой потеряно. Попробуйте ещё раз» | MDS_DISCONNECTED / MDS_LOGGING_OUT |
-| Пользователь отклонил approve | «Операция отменена» | MDS_PENDING accept: false |
+### 9.1. Mandatory Requirements
 
----
+| Requirement | Implementation |
+|------------|---------------|
+| AES key not stored in plaintext | After binding the grant, aesKey is zeroed from memory (`_zeroFill`). In the file it is stored only inside encKeyData, encrypted by the KEK |
+| AES key transmitted only via Maxima | Maxima encrypts E2E. The key does not appear in the blockchain, localStorage, or logs |
+| fileHash verified during binding | SHA-256(ciphertext) === grantPacket.fileHash. Protection against file substitution |
+| Each grant block has its own W-OTS+ signature | The recipient signs the ciphertext with their one-time key |
+| Each grant block has its own challenge and seedHash | Compromising one grant does not reveal others |
+| Zero-knowledge is preserved | Only challenges (32 random bytes each) + GrantCount are visible in the file |
+| Sensitive data is zeroed | `_zeroFill` on aesKey, seedHash, signature, fileIV, fileTag in finally blocks |
 
-## 11. Этапы разработки
+### 9.2. Threat Model (Extension to v1)
 
-### Фаза 1: Maxima-транспорт
+| Threat | Protection |
+|--------|-----------|
+| Interception of grant packet in Maxima | Maxima encrypts E2E. Without the recipient's private key, the grant is unreadable |
+| Grant packet substitution (MITM) | Maxima authenticates the sender. Substitution is impossible without control over the sender's node |
+| Sender wants to revoke a grant | Phase 5: SB_REVOKE on the blockchain. Before phase 5: impossible — the recipient already has the grant block in the file |
+| Recipient forwards the file to a third party | A third party without a grant cannot decrypt it. But the recipient can create a grant for the third party. This is by design |
+| Number of recipients is revealed | GrantCount is visible. Solution: padding with fake blocks (phase 5+) |
 
-**Цель:** отправить и принять grant через Maxima.
+### 9.3. Trust Model
 
-**Задачи:**
-1. Функция `createGrant(minimaBlob)` — расшифровка файла и извлечение grant-пакета
-2. UI: кнопка «Поделиться», модальное окно с выбором контакта
-3. Интеграция `maxcontacts` — загрузка списка контактов
-4. Отправка через `maxima action:send`
-5. Listener на `MDS.init` → `event === "MAXIMA"` → приём grant-пакета
-6. UI: уведомление о входящем grant'е
-7. Хранение полученных grant-пакетов в IndexedDB (временно, до фазы 3)
-
-**Результат:** отправитель может отправить grant, получатель может его принять и сохранить локально.
-
-**Что НЕ делаем:** изменение формата файла, привязка, расшифровка через grant.
+**The sender trusts the recipient.** This is a fundamental assumption. The sender voluntarily transmits the AES key. After that, the recipient can technically decrypt the file, create a grant for someone else, or save the AES key. This is analogous to how any shared access system works (Google Drive, Dropbox). Technical forwarding restriction (DRM) is not a goal of this project.
 
 ---
 
-### Фаза 2: Привязка grant'а
+## 10. Error Handling
 
-**Цель:** получатель пере-шифровывает AES-ключ под свой seedHash.
-
-**Задачи:**
-1. Функция `bindGrant(minimaBlob, grantPacket)` — полный flow привязки (newaddress → sign → seedrandom → шифрование → grant-блок)
-2. Проверка fileHash при привязке
-3. UI: модальное окно «Привязать к моей ноде» с прогрессом (аналогично шифрованию)
-4. Зачистка чувствительных данных
-5. Сохранение `grantIndex` подсказки в IndexedDB
-
-**Результат:** grant-блок создан в памяти. Пока сохраняется в IndexedDB, не в файле.
-
-**Расшифровка пока через IndexedDB:** приложение смотрит в IndexedDB, если есть grant для этого fileHash — используется для расшифровки.
+| Situation | User message | Technical cause |
+|-----------|-------------|----------------|
+| Grant not for this file | "This access key does not match the uploaded file" | SHA-256(ciphertext) ≠ grantPacket.fileHash |
+| Recipient is not online | "The recipient is currently offline. The message will be delivered when they connect" | Maxima behavior with offline recipient |
+| No contacts in Maxima | "Add a contact in the Minima node to share the file" | `maxcontacts` returned an empty list |
+| No block matched | "You do not have access to this file. Ask the owner to grant you access" | All decryption attempts of encMeta returned an AES-GCM error |
+| Grant already bound (re-binding) | "This file is already bound to your node" | fileHash already exists in IndexedDB |
+| Node disconnected during binding | "Connection to node lost. Please try again" | MDS_DISCONNECTED / MDS_LOGGING_OUT |
+| User rejected approve | "Operation cancelled" | MDS_PENDING accept: false |
 
 ---
 
-### Фаза 3: Формат файла v2
+## 11. Development Phases
 
-**Цель:** grant-блоки встраиваются в файл. Файл полностью портативный.
+### Phase 1: Maxima Transport
+Send and receive a grant via Maxima. No file format changes.
 
-**Задачи:**
-1. `_assembleMinima_v2` — сборка файла с CiphertextLen и grant-секцией
-2. `_parseMinima` — чтение v1 и v2 форматов
-3. `addGrantToFile(minimaBlob, grantBlock)` — добавление grant-блока к существующему файлу (v1→v2 или v2→v2)
-4. Обновление `bindGrant` — теперь возвращает обновлённый файл, а не только grant-блок
-5. UI: скачивание обновлённого файла после привязки
+### Phase 2: Grant Binding
+Recipient re-encrypts the AES key under their own seedHash. Grant block created in memory.
 
-**Результат:** файл `.minima` содержит все grant-блоки. IndexedDB остаётся только как подсказка.
+### Phase 3: v2 File Format
+Grant blocks embedded in the file. File is fully portable.
 
----
+### Phase 4: Decryption with Block Iteration
+Decryption of a v2 file by any authorized owner. IndexedDB hint + sequential fallback.
 
-### Фаза 4: Расшифровка с перебором блоков
-
-**Цель:** расшифровка v2 файла любым авторизованным владельцем.
-
-**Задачи:**
-1. Расширение `decryptFile` — определение версии и извлечение блоков
-2. Логика перебора: IndexedDB-подсказка → primary → grant-блоки
-3. Обработка ошибки «ни один блок не подошёл»
-4. UI: шаг «Поиск вашего ключа доступа» в модальном окне расшифровки
-5. Тестирование на двух нодах с разными seed phrase
-
-**Результат:** полноценный multi-bound. Отправитель и получатель расшифровывают один файл каждый на своей ноде.
+### Phase 5: On-Chain Revoke and Improvements (Future)
+SHA-256(grantId) on blockchain, SB_REVOKE, padding with fake grant blocks, TTL for grant packets.
 
 ---
 
-### Фаза 5: On-chain revoke и улучшения (будущее)
+## 12. Test Plan
 
-**Задачи:**
-1. Запись SHA-256(grantId) на блокчейн через `txnstate`
-2. Запись SB_REVOKE для отзыва grant'а
-3. Проверка revoke при расшифровке (опционально, настраиваемо)
-4. Padding фейковыми grant-блоками для скрытия количества получателей
-5. TTL для grant-пакетов (время жизни в Maxima)
-6. UI: управление выданными grant'ами, история, отзыв
-
----
-
-## 12. Открытые вопросы
-
-| Вопрос | Варианты | Текущее решение |
-|--------|---------|----------------|
-| Maxima: ждёт ли сообщение офлайн-получателя? | Зависит от реализации Maxima. Нужно проверить на тестовых нодах | Уточнить экспериментально |
-| Maxima: лимит размера сообщения? | Grant-пакет ~100 байт — вероятно влезет. Но точный лимит неизвестен | Уточнить через `help maxima` |
-| Может ли получатель добавлять grant'ы дальше? | Технически да — у него есть AES-ключ после расшифровки | By design: если дал доступ, получатель имеет полные права. Ограничение = фаза 5 (revoke) |
-| Нужна ли подпись grant'а отправителем? | Дополнительная W-OTS+ подпись на grant-пакете | Нет для MVP. Maxima аутентифицирует. Добавим если нужна верификация вне Maxima |
-| Сколько grant-блоков максимум? | Теоретически 65535 (uint16). Практически 10–20 | Не ограничиваем программно. Предупреждение в UI при > 10 |
-| Шифрование новых файлов: v1 или v2? | v1 (без CiphertextLen) или сразу v2 (с CiphertextLen, GrantCount=0) | v1 при шифровании. v2 только при добавлении первого grant'а. Минимизируем изменения |
+| Test | What we verify |
+|------|---------------|
+| Encrypt v1 → decrypt v1 | Backward compatibility not broken |
+| Encrypt v1 → add grant → decrypt primary (v2) | Primary block works in v2 |
+| Encrypt v1 → add grant → decrypt grant (v2) | Grant block works on recipient's node |
+| Decrypt v2 on node without access | Error "You do not have access" |
+| Send grant → Maxima delivery | Grant is delivered to recipient |
+| Bind grant with wrong fileHash | Error "Grant does not match this file" |
+| Two grants in one file | Both recipients can decrypt |
+| Restore node from seed phrase + v2 file (without IndexedDB) | Block iteration, decryption works |
+| v2 file opened in v1 application | Error "Unsupported version" |
+| Concurrent: two files encrypting simultaneously | pendinguid filtering works |
 
 ---
 
-## 13. Тестовый план
+## 13. Scope Estimate
 
-| Тест | Что проверяем |
-|------|--------------|
-| Шифрование v1 → расшифровка v1 | Обратная совместимость не сломана |
-| Шифрование v1 → добавление grant → расшифровка primary (v2) | Primary-блок работает в v2 |
-| Шифрование v1 → добавление grant → расшифровка grant (v2) | Grant-блок работает на ноде получателя |
-| Расшифровка v2 на ноде без доступа | Ошибка «У вас нет доступа» |
-| Отправка grant → Maxima доставка | Grant доставляется получателю |
-| Привязка grant с неверным fileHash | Ошибка «Grant не для этого файла» |
-| Два grant'а в одном файле | Оба получателя расшифровывают |
-| Восстановление ноды из seed phrase + v2 файл (без IndexedDB) | Перебор блоков, расшифровка работает |
-| Файл v2 открыт в приложении v1 | Ошибка «Неподдерживаемая версия» |
-| Concurrent: два файла шифруются одновременно | pendinguid фильтрация работает |
+| Phase | MultiBound.js (new) | MinimaCrypto.js | index.html |
+|-------|---------------------|-----------------|------------|
+| 1. Maxima transport | ~150 lines | Unchanged | ~50 lines |
+| 2. Binding | ~200 lines | Unchanged | ~60 lines |
+| 3. v2 format | ~150 lines | Unchanged | ~10 lines |
+| 4. v2 decryption | ~100 lines | Unchanged | ~20 lines |
+| 5. Revoke | ~100 lines | Unchanged | ~30 lines |
 
----
-
-## 14. Оценка объёма
-
-| Фаза | MultiBound.js (новый) | MinimaCrypto.js | index.html |
-|------|----------------------|-----------------|------------|
-| 1. Maxima-транспорт | ~150 строк | Без изменений | ~50 строк (UI «Поделиться» + уведомление) |
-| 2. Привязка | ~200 строк | Без изменений | ~60 строк (модалка привязки) |
-| 3. Формат v2 | ~150 строк (_parse + _assemble v2) | Без изменений | ~10 строк |
-| 4. Расшифровка v2 | ~100 строк (перебор блоков) | Без изменений | ~20 строк (проверка version) |
-| 5. Revoke | ~100 строк | Без изменений | ~30 строк (UI управления) |
-
-**Итого фазы 1–4:**
-- `MultiBound.js`: ~600 строк (новый файл)
-- `MinimaCrypto.js`: 0 изменений
-- `index.html`: ~140 строк изменений (UI + проверка version)
+**Total phases 1–4:**
+- `MultiBound.js`: ~600 lines (new file)
+- `MinimaCrypto.js`: 0 changes
+- `index.html`: ~140 lines of changes

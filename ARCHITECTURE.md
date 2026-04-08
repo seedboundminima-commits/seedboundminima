@@ -1,162 +1,162 @@
-# MinimaCrypto v1 — Архитектура шифрования
+# MinimaCrypto v1 — Encryption Architecture
 
-## Обзор
+## Overview
 
-MinimaCrypto v1 — MiniDapp для блокчейна Minima, реализующий квантово-устойчивое шифрование файлов. Защита основана на seed phrase ноды: без неё расшифровка невозможна, даже при наличии файла `.minima`.
+MinimaCrypto v1 is a MiniDapp for the Minima blockchain that implements quantum-resistant file encryption. Protection is based on the node's seed phrase: without it, decryption is impossible even if the `.minima` file is available.
 
-**Принцип:** в зашифрованном файле виден только 32-байтный `challenge`. Все остальные данные (ключ шифрования, подпись, IV, tag, адрес, публичный ключ) зашифрованы и доступны только владельцу seed phrase.
+**Principle:** only the 32-byte `challenge` is visible in the encrypted file. All other data (encryption key, signature, IV, tag, address, public key) is encrypted and accessible only to the owner of the seed phrase.
 
 ---
 
-## Используемые криптографические примитивы
+## Cryptographic Primitives Used
 
-| Примитив | Назначение | Параметры |
+| Primitive | Purpose | Parameters |
 |---|---|---|
-| **AES-256-GCM** | Симметричное шифрование файла | 256-бит ключ, 128-бит IV, 128-бит Auth Tag |
-| **PBKDF2-SHA512** | Деривация KEK из seedHash | 250 000 итераций, 128-бит salt, контекстная строка |
-| **W-OTS+** (Winternitz One-Time Signature) | Квантово-устойчивая подпись файла | ~4125 байт подпись, одноразовый адрес |
-| **seedrandom** (Minima) | Детерминированная генерация хеша из seed phrase + modifier | SHA-256 хеш, зависит от seed фразы ноды |
-| **SHA-256** | Хеширование данных перед подписью | 256-бит хеш |
-| **Web Crypto API** | Все криптографические операции в браузере | Нативная реализация, без JS-библиотек |
+| **AES-256-GCM** | Symmetric file encryption | 256-bit key, 128-bit IV, 128-bit Auth Tag |
+| **PBKDF2-SHA512** | KEK derivation from seedHash | 250,000 iterations, 128-bit salt, context string |
+| **W-OTS+** (Winternitz One-Time Signature) | Quantum-resistant file signature | ~4125 bytes signature, one-time address |
+| **seedrandom** (Minima) | Deterministic hash generation from seed phrase + modifier | SHA-256 hash, depends on node's seed phrase |
+| **SHA-256** | Hashing data before signing | 256-bit hash |
+| **Web Crypto API** | All cryptographic operations in the browser | Native implementation, no JS libraries |
 
 ---
 
-## Уровни защиты
+## Security Layers
 
-### Уровень 1: Шифрование данных (AES-256-GCM)
-- Файл шифруется случайным 256-битным AES ключом
-- GCM режим обеспечивает конфиденциальность + целостность данных
-- 128-бит Authentication Tag гарантирует обнаружение любых изменений
-- Без AES ключа brute-force: 2^256 операций
+### Layer 1: Data Encryption (AES-256-GCM)
+- The file is encrypted with a random 256-bit AES key
+- GCM mode provides confidentiality + data integrity
+- 128-bit Authentication Tag guarantees detection of any modifications
+- Without the AES key, brute-force requires: 2^256 operations
 
-### Уровень 2: Защита ключа (seedrandom + PBKDF2-SHA512)
-- AES ключ обёрнут (wrapped) через KEK_key
+### Layer 2: Key Protection (seedrandom + PBKDF2-SHA512)
+- AES key is wrapped via KEK_key
 - `KEK_key = PBKDF2-SHA512(seedHash, "qcrypto-kek-v1" + salt, 250k)`
-- `seedHash` — результат `seedrandom(challenge)` на ноде Minima
-- Без seed phrase → другой seedHash → другой KEK → AES ключ не извлечь
-- PBKDF2-SHA512 с 250k итерациями замедляет brute-force + даёт ~256 бит квантовой стойкости
+- `seedHash` is the result of `seedrandom(challenge)` on the Minima node
+- Without seed phrase → different seedHash → different KEK → AES key cannot be extracted
+- PBKDF2-SHA512 with 250k iterations slows brute-force + provides ~256 bits of quantum security
 
-### Уровень 3: Скрытые метаданные (полный zero-knowledge)
-- Адрес, публичный ключ, подпись, FileIV и FileTag зашифрованы через KEK_meta
+### Layer 3: Hidden Metadata (full zero-knowledge)
+- Address, public key, signature, FileIV and FileTag are encrypted via KEK_meta
 - `KEK_meta = PBKDF2-SHA512(seedHash, "qcrypto-meta-v1" + salt, 250k)`
-- Контекстные строки `"qcrypto-kek-v1"` и `"qcrypto-meta-v1"` гарантируют что KEK_key ≠ KEK_meta даже при совпадении salt
-- В файле `.minima` невозможно определить какой адрес/ключ/IV/tag использовался
-- Без seed phrase метаданные недоступны
+- Context strings `"qcrypto-kek-v1"` and `"qcrypto-meta-v1"` guarantee KEK_key ≠ KEK_meta even with matching salt
+- The `.minima` file reveals nothing about which address/key/IV/tag was used
+- Without seed phrase, metadata is inaccessible
 
-### Уровень 4: Квантово-устойчивая подпись (W-OTS+)
-- Каждый файл подписывается одноразовым W-OTS+ ключом через Minima
-- Подпись привязана к конкретному ciphertext + address
-- При расшифровке подпись верифицируется — гарантирует что файл не изменён
-- W-OTS+ устойчив к атакам квантовых компьютеров (hash-based signature)
-- Одноразовое использование ключа — каждый файл получает новый адрес
+### Layer 4: Quantum-Resistant Signature (W-OTS+)
+- Each file is signed with a one-time W-OTS+ key via Minima
+- The signature is bound to the specific ciphertext + address
+- During decryption the signature is verified — guarantees the file has not been modified
+- W-OTS+ is resistant to quantum computer attacks (hash-based signature)
+- One-time key usage — each file gets a new address
 
-### Уровень 5: Привязка к ноде
-- При расшифровке проверяется `checkaddress` — адрес должен принадлежать ноде
-- Файл можно расшифровать только на ноде с тем же seed phrase
-- Резервное копирование seed phrase = резервное копирование доступа ко всем файлам
+### Layer 5: Node Binding
+- During decryption, `checkaddress` is checked — the address must belong to the node
+- The file can only be decrypted on a node with the same seed phrase
+- Backing up the seed phrase = backing up access to all files
 
 ---
 
-## Процесс шифрования (7 шагов)
+## Encryption Process (7 steps)
 
 ```
-Файл → .minima (2 approve в ноде)
+File → .minima (2 approvals in node)
 ```
 
-| Шаг | Операция | Детали |
+| Step | Operation | Details |
 |---|---|---|
-| 1 | `newaddress` | Создаётся новый одноразовый W-OTS+ адрес (address + publickey) |
-| 2 | Генерация AES ключа | `crypto.subtle.generateKey("AES-GCM", 256)` + случайный IV (16 байт) |
-| 3 | Шифрование файла | `AES-256-GCM(aesKey, IV, файл)` → ciphertext + tag (16 байт) |
-| 4 | W-OTS+ подпись | `sign(SHA-256(ciphertext + address), publickey)` → signature (~4125 байт). **Approve 1** |
-| 5 | seedrandom | Генерация 32 случайных байт (challenge). `seedrandom(challenge)` → seedHash (32 байт). **Approve 2** |
-| 6 | Обёртка ключа | `PBKDF2-SHA512(seedHash, "qcrypto-kek-v1" + salt, 250k)` → KEK_key. `AES-GCM-wrap(KEK_key, aesKey)` → encKeyData |
-| 6.5 | Шифрование метаданных | `PBKDF2-SHA512(seedHash, "qcrypto-meta-v1" + salt2, 250k)` → KEK_meta. `AES-GCM(KEK_meta, address + publickey + signature + fileIV + fileTag)` → encMeta |
-| 7 | Сборка файла | Все компоненты собираются в бинарный формат `.minima` v1 |
+| 1 | `newaddress` | A new one-time W-OTS+ address is created (address + publickey) |
+| 2 | AES key generation | `crypto.subtle.generateKey("AES-GCM", 256)` + random IV (16 bytes) |
+| 3 | File encryption | `AES-256-GCM(aesKey, IV, file)` → ciphertext + tag (16 bytes) |
+| 4 | W-OTS+ signature | `sign(SHA-256(ciphertext + address), publickey)` → signature (~4125 bytes). **Approve 1** |
+| 5 | seedrandom | Generate 32 random bytes (challenge). `seedrandom(challenge)` → seedHash (32 bytes). **Approve 2** |
+| 6 | Key wrapping | `PBKDF2-SHA512(seedHash, "qcrypto-kek-v1" + salt, 250k)` → KEK_key. `AES-GCM-wrap(KEK_key, aesKey)` → encKeyData |
+| 6.5 | Metadata encryption | `PBKDF2-SHA512(seedHash, "qcrypto-meta-v1" + salt2, 250k)` → KEK_meta. `AES-GCM(KEK_meta, address + publickey + signature + fileIV + fileTag)` → encMeta |
+| 7 | File assembly | All components are assembled into the binary `.minima` v1 format |
 
 ---
 
-## Процесс расшифровки (5 шагов)
+## Decryption Process (5 steps)
 
 ```
-.minima → Файл (1 approve в ноде)
+.minima → File (1 approval in node)
 ```
 
-| Шаг | Операция | Детали |
+| Step | Operation | Details |
 |---|---|---|
-| 1 | Парсинг | Извлечение challenge, encKeyData, encMeta, ciphertext |
-| 2 | seedrandom | `seedrandom(challenge)` → тот же seedHash. **Approve 1** |
-| 3 | Расшифровка метаданных | KEK_meta из seedHash → расшифровка → address, publickey, signature, fileIV, fileTag |
-| 3.5 | Верификация адреса | `checkaddress(address)` → `relevant: true` (адрес принадлежит ноде) |
-| 3.6 | Верификация подписи | `verify(SHA-256(ciphertext + address), publickey, signature)` → "Signature valid" |
-| 4 | Расшифровка ключа | KEK_key из seedHash → unwrap AES ключ |
-| 5 | Расшифровка файла | `AES-256-GCM-decrypt(aesKey, fileIV, fileTag, ciphertext)` → исходный файл |
+| 1 | Parsing | Extract challenge, encKeyData, encMeta, ciphertext |
+| 2 | seedrandom | `seedrandom(challenge)` → same seedHash. **Approve 1** |
+| 3 | Metadata decryption | KEK_meta from seedHash → decrypt → address, publickey, signature, fileIV, fileTag |
+| 3.5 | Address verification | `checkaddress(address)` → `relevant: true` (address belongs to node) |
+| 3.6 | Signature verification | `verify(SHA-256(ciphertext + address), publickey, signature)` → "Signature valid" |
+| 4 | Key decryption | KEK_key from seedHash → unwrap AES key |
+| 5 | File decryption | `AES-256-GCM-decrypt(aesKey, fileIV, fileTag, ciphertext)` → original file |
 
 ---
 
-## Формат файла .minima v1
+## .minima v1 File Format
 
 ```
-Offset  Size     Поле              Содержимое
+Offset  Size     Field             Contents
 ──────  ───────  ────────────────  ──────────────────────────
 0       4        MAGIC             0x4D 0x49 0x4E 0x00 ("MIN\0")
 4       1        VERSION           0x01
-5       32       Challenge         Случайные 32 байт (единственные открытые данные)
-37      2        EncKeyLen         Длина encKeyData (LE uint16)
+5       32       Challenge         Random 32 bytes (the only visible data)
+37      2        EncKeyLen         Length of encKeyData (LE uint16)
 39      ~76      EncKeyData        salt(16) + iv(12) + wrappedAESKey(48)
-~115    4        EncMetaLen        Длина encMeta (LE uint32)
+~115    4        EncMetaLen        Length of encMeta (LE uint32)
 ~119    ~4340    EncMeta           salt(16) + iv(12) + AES-GCM(addr + pk + sig + IV + tag)
-~4459   *        Ciphertext        AES-256-GCM зашифрованные данные файла
+~4459   *        Ciphertext        AES-256-GCM encrypted file data
 ```
 
-**Что видно без seed phrase:** MAGIC, VERSION, Challenge (32 байт случайных данных), длины блоков, зашифрованные блобы. Никакой полезной информации.
+**What is visible without seed phrase:** MAGIC, VERSION, Challenge (32 bytes of random data), block lengths, encrypted blobs. No useful information.
 
-**Что скрыто:** AES ключ, FileIV, FileTag, W-OTS+ подпись (~4125 байт), адрес (66 символов), публичный ключ (66 символов), содержимое файла.
+**What is hidden:** AES key, FileIV, FileTag, W-OTS+ signature (~4125 bytes), address (66 characters), public key (66 characters), file contents.
 
 ---
 
-## Модель угроз
+## Threat Model
 
-| Угроза | Защита | Результат |
+| Threat | Protection | Outcome |
 |---|---|---|
-| Перехват файла `.minima` | AES-256-GCM + seedrandom-locked KEK | Без seed phrase данные не извлечь |
-| Подмена файла | W-OTS+ подпись + AES-GCM auth tag | Любое изменение обнаруживается |
-| Brute-force AES ключа | 256-бит ключ (2^256 пространство) | Вычислительно невозможно |
-| Brute-force KEK | PBKDF2-SHA512 250k + seedrandom + контекст | Замедляет атаку + требует seed phrase |
-| Квантовый компьютер (Гровер) | SHA-512 в PBKDF2 → ~256 бит квантовой стойкости | Устойчив |
-| Квантовый компьютер (Шор) | W-OTS+ (hash-based, quantum-resistant) | Устойчив |
-| Анализ метаданных | addr + pk + sig + IV + tag зашифрованы | Полный zero-knowledge |
-| Совпадение KEK_key и KEK_meta | Контекстные строки `"qcrypto-kek-v1"` / `"qcrypto-meta-v1"` | Невозможно даже теоретически |
-| Потеря ноды | Восстановление через seed phrase | Все адреса и seedrandom воспроизводимы |
+| Interception of `.minima` file | AES-256-GCM + seedrandom-locked KEK | Without seed phrase, data cannot be extracted |
+| File tampering | W-OTS+ signature + AES-GCM auth tag | Any modification is detected |
+| Brute-force AES key | 256-bit key (2^256 space) | Computationally infeasible |
+| Brute-force KEK | PBKDF2-SHA512 250k + seedrandom + context | Slows attack + requires seed phrase |
+| Quantum computer (Grover) | SHA-512 in PBKDF2 → ~256 bits of quantum security | Resistant |
+| Quantum computer (Shor) | W-OTS+ (hash-based, quantum-resistant) | Resistant |
+| Metadata analysis | addr + pk + sig + IV + tag are encrypted | Full zero-knowledge |
+| KEK_key and KEK_meta collision | Context strings `"qcrypto-kek-v1"` / `"qcrypto-meta-v1"` | Impossible even theoretically |
+| Node loss | Recovery via seed phrase | All addresses and seedrandom are reproducible |
 
 ---
 
-## Зависимости
+## Dependencies
 
-- **Minima Node** — блокчейн-нода с W-OTS+ подписями и `seedrandom`
-- **MDS (MiniDapp System)** — WebSocket API для взаимодействия с нодой
-- **Web Crypto API** — нативные криптографические примитивы браузера (AES, SHA-512, PBKDF2)
-- **Без внешних библиотек** — вся криптография через стандартные API
+- **Minima Node** — blockchain node with W-OTS+ signatures and `seedrandom`
+- **MDS (MiniDapp System)** — WebSocket API for interacting with the node
+- **Web Crypto API** — native cryptographic primitives of the browser (AES, SHA-512, PBKDF2)
+- **No external libraries** — all cryptography via standard APIs
 
 ---
 
-## Команды Minima
+## Minima Commands
 
-| Команда | Когда | Требует approve |
+| Command | When | Requires approve |
 |---|---|---|
-| `newaddress` | Создание одноразового W-OTS+ адреса | Нет |
-| `sign data:HASH publickey:PK` | Подпись хеша файла | Да |
-| `seedrandom modifier:"CHALLENGE"` | Деривация хеша из seed phrase | Да |
-| `checkaddress address:ADDR` | Проверка принадлежности адреса ноде | Нет |
-| `verify data:HASH publickey:PK signature:SIG` | Верификация W-OTS+ подписи | Нет |
+| `newaddress` | Creating a one-time W-OTS+ address | No |
+| `sign data:HASH publickey:PK` | Signing the file hash | Yes |
+| `seedrandom modifier:"CHALLENGE"` | Deriving hash from seed phrase | Yes |
+| `checkaddress address:ADDR` | Checking that address belongs to node | No |
+| `verify data:HASH publickey:PK signature:SIG` | Verifying W-OTS+ signature | No |
 
 ---
 
-## Итого
+## Summary
 
-- **Шифрование:** 2 подтверждения в ноде (sign + seedrandom)
-- **Расшифровка:** 1 подтверждение в ноде (seedrandom)
-- **Квантовая устойчивость:** W-OTS+ подпись (hash-based) + PBKDF2-SHA512 (~256 бит квантовой стойкости)
-- **Привязка к ноде:** seedrandom детерминирован от seed phrase
-- **Zero-knowledge:** в файле видны только 32 случайных байт (challenge) — ни IV, ни tag, ни метаданные
-- **Разделение ключей:** контекстные строки гарантируют KEK_key ≠ KEK_meta
+- **Encryption:** 2 confirmations in node (sign + seedrandom)
+- **Decryption:** 1 confirmation in node (seedrandom)
+- **Quantum resistance:** W-OTS+ signature (hash-based) + PBKDF2-SHA512 (~256 bits of quantum security)
+- **Node binding:** seedrandom is deterministic from seed phrase
+- **Zero-knowledge:** only 32 random bytes (challenge) are visible in the file — no IV, no tag, no metadata
+- **Key separation:** context strings guarantee KEK_key ≠ KEK_meta
