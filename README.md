@@ -207,6 +207,12 @@ dapp.conf           MiniDapp manifest
 
 ---
 
+## License
+
+Seedbound is open source under the [MIT License](LICENSE). The full source code is available on GitHub. Community review and contributions are welcome.
+
+---
+
 ## Version
 
 **Seedbound v1.0.1**
