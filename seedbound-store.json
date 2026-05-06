@@ -1,15 +1,29 @@
 {
   "name": "Seedbound",
   "description": "Quantum-resistant file encryption for Minima",
+  "banner": "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/images/overview.png",
   "icon": "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/icon.png",
   "version": "1.0",
+  "manifest_version": 2,
   "dapps": [
     {
-      "name": "Seedbound",
-      "description": "Quantum-resistant file encryption with multi-node access grants via Maxima",
-      "version": "1.0.1",
+      "file": "https://github.com/seedboundminima-commits/seedboundminima/releases/download/v1.0.1/Seedbound-v1.0.1.zip",
       "icon": "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/icon.png",
-      "file": "https://github.com/seedboundminima-commits/seedboundminima/releases/download/v1.0.1/Seedbound-v1.0.1.zip"
+      "name": "Seedbound",
+      "date": "Apr 06, 2026",
+      "description": "Quantum-resistant file encryption with multi-node access grants via Maxima",
+      "repository_url": "https://github.com/seedboundminima-commits/seedboundminima",
+      "version": "1.0.1",
+      "about": "Seedbound turns your Minima node into a personal quantum-resistant encryption vault. Files are encrypted with AES-256-GCM and signed with W-OTS+ — Minima's native quantum-resistant signature — while the AES key itself is bound to your node's seed phrase via the `seedrandom` primitive. You never see, store, or transmit a key.\n\nShare access with any number of nodes via Maxima — each recipient gets their own grant block bound to their own seed. Either party can decrypt on their own node; nobody hands over a key.\n\nBuilt for lawyers, journalists, medical professionals, and privacy-conscious users who handle sensitive files and cannot afford key loss or unauthorized access. Works fully locally — no servers, no cloud, no data ever leaves your machine.",
+      "screenshots": [
+        "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/images/overview.png",
+        "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/images/encrypt_01_file_selected.png",
+        "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/images/encrypt_03_success.png",
+        "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/images/share_01_sending_grant.png",
+        "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/images/share_02_grant_received.jpg",
+        "https://raw.githubusercontent.com/seedboundminima-commits/seedboundminima/master/images/about.png"
+      ],
+      "release_notes": "### v1.0.1 — April 6, 2026\n\n- First public release\n- AES-256-GCM file encryption with W-OTS+ quantum-resistant signature\n- Multi-Bound access system: share decryption with multiple Minima nodes via independent grant blocks\n- P2P grant delivery over Maxima\n- Persistent grant index via Minima H2 SQL\n- Supports files up to ~100 MB"
     }
   ]
 }
