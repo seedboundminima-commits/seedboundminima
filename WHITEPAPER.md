@@ -386,7 +386,7 @@ The codebase is MIT-licensed and openly auditable. The architecture is documente
 - **Architecture document**: ARCHITECTURE.md
 - **Multi-Bound specification**: MULTI-BOUND-SPEC.md
 - **Test plan**: TESTING.md (50+ manual test cases)
-- **Demo video**: _(to be linked once published)_
+- **Demo video**: https://youtu.be/uVilDrgOrZg
 
 **External references:**
 - Minima MDS documentation: https://docs.minima.global/
